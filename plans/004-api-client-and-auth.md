@@ -1,7 +1,7 @@
 # 004 — API client + Supabase auth in nightout_core
 
-- **Status**: TODO
-- **Owner**: —
+- **Status**: IN PROGRESS
+- **Owner**: agent: Claude Code (API + auth, started 2026-10-16)
 - **Commit**: —
 - **Priority**: HIGH
 - **Estimated scope**: new code in `packages/nightout_core`, login screens in both apps
@@ -44,6 +44,16 @@ packages/nightout_core/lib/src/auth/
   and Android `AndroidManifest.xml` (`intent-filter`). Ask the repo owner to add the URL to
   Supabase → Authentication → URL Configuration → Redirect URLs.
 
+## Files claimed (other agents: do not edit until Status is DONE)
+
+`packages/nightout_core/`: `pubspec.yaml`, `lib/nightout_core.dart`, new `lib/src/api/**`,
+`lib/src/auth/**`, new tests under `test/`. `apps/admin/`: `pubspec.yaml`, `lib/**` (except
+`lib/screen/home/` tab placeholders beyond the dashboard and account), `test/**`. `apps/client/`:
+`pubspec.yaml`, `lib/main.dart`, `lib/router/`, `lib/screen/{login,home,splash.screen.dart}`, new
+`lib/modules/**` auth files, `test/**`. Root `pubspec.lock`, `AGENTS.md` (HTTP client note only),
+`docs/nightout/README.md` (auth/API sections), `plans/004`, `plans/011`, rows in `plans/README.md`,
+Known issues of `plans/007`.
+
 ## Steps
 
 1. Add `dio`, `supabase_flutter` (check a version that supports Flutter 3.41) to core; remove
@@ -52,11 +62,14 @@ packages/nightout_core/lib/src/auth/
    envelope returns `data`; `no` envelope throws with `code`/`err_msg`; 401 with
    `unauthorizedCode` throws that code.
 3. Supabase init in both `main.dart` (after `WidgetsFlutterBinding.ensureInitialized()`).
-4. Client: email/password + Google + Facebook login screen per web `/login` (SITEMAP §2). Deep
-   link setup. Note: Google/Facebook also need bundle id / package name + SHA-1 registered in
-   their consoles (owner task).
+4. Client: email/password login screen per web `/login` (SITEMAP §2,
+   `apps/frontend/src/ui/components/authLoginForm.tsx`). Owner decision 2026-10-16: email/password
+   only here; Google/Facebook, the `nightout` deep link, forgot password and `/signup/social` are
+   plan 011.
 5. Admin: email/password → role check (`/me/profile`) → TOTP enroll/verify → `aal2`, per web
-   `apps/admin` login. 401 `MFA_REQUIRED` routes back to the code screen.
+   `apps/admin` login. 401 `MFA_REQUIRED` routes back to the code screen. Keep plan 010's behavior
+   (stale TOTP factors unenrolled before enroll, no sign-out on enroll/code errors) and port
+   `test/auth_mfa_test.dart` to the new seam.
 6. Smoke test against the deployed API with a **test account only** (data is real).
 
 ## Done when

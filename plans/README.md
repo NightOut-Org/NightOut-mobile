@@ -8,13 +8,14 @@ agent can pick one up cold, without the conversation that produced it.
 | 001 | [Merge client + admin into one pub workspace](001-workspace-restructure.md) | HIGH | DONE |
 | 002 | [Choose the web branch that tokens follow](002-token-source-branch.md) | MEDIUM | BLOCKED (owner decision) |
 | 003 | [Close app-wide theme gaps vs THEME.md](003-theme-foundation-gaps.md) | HIGH | DONE |
-| 004 | [API client + Supabase auth in nightout_core](004-api-client-and-auth.md) | HIGH | TODO |
+| 004 | [API client + Supabase auth in nightout_core](004-api-client-and-auth.md) | HIGH | IN PROGRESS |
 | 005 | [Theme components built with their first screen](005-theme-components-backlog.md) | LOW | BACKLOG |
 | 006 | [Cleanup outside the app code](006-cleanup.md) | LOW | TODO |
 | 007 | [Port admin login + MFA + dashboard from 4c742d7](007-port-admin-login-4c742d7.md) | HIGH | DONE |
 | 008 | [Opacity scale + auth-screen colours in core](008-alpha-scale-and-auth-colors.md) | MEDIUM | DONE |
 | 009 | [Shared gold gradient title widget](009-gradient-title-widget.md) | MEDIUM | DONE |
 | 010 | [Port admin auth fixes from 591bd4a](010-port-admin-auth-fixes-591bd4a.md) | HIGH | DONE |
+| 011 | [Client social login, deep link, password reset](011-social-login-and-password-reset.md) | MEDIUM | TODO |
 
 ## Recommended order
 
