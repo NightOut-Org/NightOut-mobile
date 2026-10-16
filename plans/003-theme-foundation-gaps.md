@@ -112,4 +112,5 @@ Scope added after reading the web:
 - `apps/client/ios/Podfile.lock` + `project.pbxproj`: the client's first native plugin
   (`shared_preferences`, via core) made CocoaPods add the pod and its embed phase. Expected.
 - Not verified on device: the iOS Reduce Motion switch (covered by widget tests only); the admin
-  app on the simulator (covered by its widget test; `main.dart` is the same pattern as the client).
+  app on the simulator (covered by its widget test; `main.dart` is the same pattern as the client); client
+  login/register in LIGHT (both use `ContentLayout` with theme colours only).
