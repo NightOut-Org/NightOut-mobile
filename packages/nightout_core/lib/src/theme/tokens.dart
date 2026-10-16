@@ -23,6 +23,23 @@ abstract final class NightOutRadius {
   static const authGlass = 24.0;
 }
 
+/// Opacity steps for tinting a token, like the web's Tailwind `purple/45`:
+/// `colors.purple.withValues(alpha: NightOutAlpha.medium)`.
+/// Mobile-only: web writes the number inline in each class name.
+abstract final class NightOutAlpha {
+  /// Barely-there fill: `bg-grey/5` on the auth card.
+  static const faint = 0.05;
+
+  /// Tinted background behind a coloured border or text, e.g. an error box.
+  static const subtle = 0.12;
+
+  /// Soft border or glow: `border-purple/45`.
+  static const medium = 0.45;
+
+  /// Strong overlay on photos: `bg-black/65`.
+  static const strong = 0.65;
+}
+
 /// Bar tier badge colours. Customers see stars; Backoffice charts use these.
 enum NightOutTier {
   s(_tierS),

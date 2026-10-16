@@ -32,6 +32,7 @@
 
 ## ธีม
 - สีมาจาก `context.colors` (`NightOutColors`) หรือ `Theme.of(context).colorScheme` เท่านั้น · **ห้ามพิมพ์ `Color(0x…)` ในแอป** (`tool/check_raw_colors.sh` ตรวจให้)
+- สีเฉพาะหน้าที่ token ไม่มี: (1) ถ้าเป็นสีจางของ token ใช้ `colors.x.withValues(alpha: NightOutAlpha.subtle)` ห้ามพิมพ์ตัวเลข alpha เอง · (2) ถ้าเป็นสีใหม่ของฟีเจอร์ ทำ `ThemeExtension` ใน `nightout_core` ที่มีค่าทั้งมืดและสว่าง แล้วลงทะเบียนใน `nightOutTheme()` (ตัวอย่าง: `AuthColors` / `context.authColors` ของหน้าเข้าสู่ระบบ) · (3) สีที่มากับข้อมูลจาก API แปลงใน model ไม่นับเป็นสีดีไซน์
 - `packages/nightout_core/lib/src/theme/tokens.g.dart` สร้างจากเว็บด้วย `node tool/gen_tokens.mjs` · ห้ามแก้มือ · เว็บเปลี่ยนสีเมื่อไหร่ให้รันใหม่
 - ธีมมืดเป็นค่าเริ่มต้น · ผู้ใช้เลือก DARK / LIGHT / SYSTEM ได้ เก็บใน key `nightout-theme` (`nightOutThemeStorageKey`) · state อยู่ที่ `nightOutThemeModeProvider` ใน core ห้ามเก็บซ้ำในแอป
 - ฟอนต์: IBM Plex Sans Thai (`NightOutText.sans`) · Playfair Display สำหรับหัวข้อภาษาอังกฤษ (`NightOutText.display`) · ไอคอน: `phosphor_flutter` เท่านั้น

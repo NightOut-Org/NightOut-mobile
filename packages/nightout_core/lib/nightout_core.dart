@@ -1,5 +1,6 @@
 export 'src/env.dart';
 export 'src/motion.dart';
+export 'src/theme/auth_colors.dart';
 export 'src/theme/theme.dart';
 export 'src/theme/theme_mode.dart';
 export 'src/theme/tokens.dart';

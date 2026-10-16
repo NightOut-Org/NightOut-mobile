@@ -152,7 +152,9 @@ const nightOutEaseOut = Cubic(0.22, 1, 0.36, 1);
 
 - สีทุกตัวในตาราง "สีหลัก" รวม `heroVia` `titleFrom` `titleTo` เงา glow ป้ายระดับร้าน มุมโค้ง และจังหวะการเคลื่อน สร้างจาก `packages/ui/src/tokens.ts` กับ `theme.css` ของเว็บด้วย `node tool/gen_tokens.mjs` ไปที่ `lib/src/theme/tokens.g.dart` ห้ามแก้ไฟล์นั้นด้วยมือ
 - เว็บเปลี่ยนสีเมื่อไหร่ รัน `node tool/gen_tokens.mjs` ใหม่ · `node tool/gen_tokens.mjs --check` บอกได้ว่าไฟล์ในแอปตามเว็บทันหรือยัง
-- ค่าที่เว็บไม่ได้เก็บใน `tokens.ts` (`themeFade` 300 ms, กดการ์ด scale 0.98, มุม `authGlass` 24) เขียนไว้ใน `lib/src/theme/tokens.dart`
+- ค่าที่เว็บไม่ได้เก็บใน `tokens.ts` (`themeFade` 300 ms, กดการ์ด scale 0.98, มุม `authGlass` 24, ขั้นความโปร่ง `NightOutAlpha`) เขียนไว้ใน `lib/src/theme/tokens.dart`
+- `NightOutAlpha` คือขั้นความโปร่งแทนเลขหลัง `/` ของ Tailwind บนเว็บ (`purple/45`): `faint` 0.05 · `subtle` 0.12 · `medium` 0.45 · `strong` 0.65 · ใช้ `colors.purple.withValues(alpha: NightOutAlpha.medium)`
+- สีของหน้าเข้าสู่ระบบ (การ์ดกระจก ช่องกรอก ปุ่มทองไล่สี ตัวอักษร `#1A1206`) อยู่ใน `AuthColors` (`lib/src/theme/auth_colors.dart`) อ่านด้วย `context.authColors` · ค่ามาจาก `.auth-glass` / `.auth-modal` / `.btn-gold` ใน `apps/frontend/src/styles/index.css` ของเว็บ · เว็บใช้การ์ดกระจกมืดทั้งสองโหมด `AuthColors.light` จึงเท่ากับ `dark`
 - ถ้าตารางในเอกสารนี้ไม่ตรงกับ `tokens.g.dart` ให้ยึด `tokens.g.dart` (มาจากเว็บโดยตรง) แล้วแก้เอกสารนี้
 
 ใช้ในแอป:

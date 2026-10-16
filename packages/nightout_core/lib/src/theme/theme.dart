@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'auth_colors.dart';
 import 'tokens.dart';
 
 extension NightOutContext on BuildContext {
   NightOutColors get colors => Theme.of(this).extension<NightOutColors>()!;
+  AuthColors get authColors => Theme.of(this).extension<AuthColors>()!;
 }
 
 abstract final class NightOutText {
@@ -135,7 +137,7 @@ ThemeData nightOutTheme(Brightness brightness) {
     scaffoldBackgroundColor: colors.background,
     textTheme: textTheme,
     primaryTextTheme: textTheme,
-    extensions: [colors],
+    extensions: [colors, AuthColors.of(brightness)],
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
         TargetPlatform.android: CupertinoPageTransitionsBuilder(),
