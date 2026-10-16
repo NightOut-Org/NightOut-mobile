@@ -5,7 +5,7 @@ import 'package:nightout_core/nightout_core.dart';
 import 'package:nightoutadmin/config.dart';
 import 'package:nightoutadmin/library/loading.dart';
 import 'package:nightoutadmin/providers/main.provider.dart';
-import 'package:nightoutadmin/router/app.router.dart';
+import 'package:nightoutadmin/app.router.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});

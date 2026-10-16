@@ -21,7 +21,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
 
-    expect(find.text('NightOut Admin'), findsOneWidget);
+    expect(find.text('Admin Pass'), findsOneWidget);
 
     final darkScaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
     expect(darkScaffold.backgroundColor, NightOutColors.dark.background);
