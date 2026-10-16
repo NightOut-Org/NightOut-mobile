@@ -2,7 +2,7 @@
 
 - **Status**: DONE
 - **Owner**: Win + agent: Claude Code (session 2026-10-16)
-- **Commit**: —
+- **Commit**: `239aa79`
 - **Priority**: HIGH
 
 ## Problem
