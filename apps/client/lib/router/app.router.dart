@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nightout/library/app.navigator.dart';
+import 'package:nightout/modules/controller/auth.ctrl.dart';
 import 'package:nightout/screen/home/home.page.dart';
 import 'package:nightout/screen/login/login.page.dart';
 import 'package:nightout/screen/register/register.page.dart';
@@ -16,10 +17,24 @@ abstract final class AppRoutes {
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
+  // Listened, not watched: rebuilding the GoRouter would reset the stack.
+  final auth = ValueNotifier<CustomerAuth>(ref.read(customerAuthProvider));
+  ref.listen(customerAuthProvider, (_, next) => auth.value = next);
+  ref.onDispose(auth.dispose);
+
   return GoRouter(
     navigatorKey: AppNavigator.key,
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: kDebugMode,
+    refreshListenable: auth,
+    redirect: (context, state) {
+      final signedIn = auth.value is CustomerSignedIn;
+      return switch (state.matchedLocation) {
+        AppRoutes.login when signedIn => AppRoutes.home,
+        AppRoutes.home when !signedIn => AppRoutes.login,
+        _ => null,
+      };
+    },
     observers: [
       AppNavigator.routeObserver,
     ],

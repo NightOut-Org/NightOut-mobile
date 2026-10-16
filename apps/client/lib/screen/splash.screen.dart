@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nightout_core/nightout_core.dart';
 import 'package:nightout/config.dart';
 import 'package:nightout/models/app/splash.model.dart';
-import 'package:nightout/modules/controller/app.ctrl.dart';
+import 'package:nightout/modules/controller/auth.ctrl.dart';
+import 'package:nightout/router/app.router.dart';
 import 'package:nightout/widgets/splash/animation.design.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -20,18 +22,26 @@ class SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _bootstrap();
+    // restore() can change provider state at once, which is not allowed while
+    // the tree is building.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
   Future<void> _bootstrap() async {
-    await Future<void>.delayed(_minimumDisplay);
-    if (!mounted) return;
-    await ref.read(appCtrl.notifier).init();
+    final auth = ref.read(customerAuthProvider.notifier);
+    try {
+      await Future.wait([Future<void>.delayed(_minimumDisplay), auth.restore()]);
+    } finally {
+      // Leave the splash even when restore() throws something unexpected.
+      if (mounted) {
+        final signedIn = ref.read(customerAuthProvider) is CustomerSignedIn;
+        context.go(signedIn ? AppRoutes.home : AppRoutes.login);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final error = ref.watch(appCtrl.select((s) => s.error));
     final colors = context.colors;
 
     // No AppBar here, so set the status bar from the theme ourselves.
@@ -58,20 +68,7 @@ class SplashScreenState extends ConsumerState<SplashScreen> {
                 children: [
                   GradientTitle(Config.appname),
                   const SizedBox(height: 32),
-                  if (error.isEmpty)
-                    const LoadWidget()
-                  else
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        error,
-                        textAlign: TextAlign.center,
-                        style: NightOutText.sans(
-                          fontSize: 14,
-                          color: colors.muted,
-                        ),
-                      ),
-                    ),
+                  const LoadWidget(),
                 ],
               ),
             ),

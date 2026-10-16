@@ -5,6 +5,7 @@ import 'package:nightout_core/nightout_core.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initNightOutSupabase();
   final themeMode = await loadNightOutThemeMode();
 
   runApp(
