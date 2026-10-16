@@ -120,7 +120,7 @@
 | กดการ์ด | scale 0.98 |
 | ชี้การ์ด | ยกขึ้น 4 px |
 
-ถ้าผู้ใช้เปิดลดการเคลื่อนไหว ให้เหลือเฟด 150 ms หรือเปลี่ยนทันที
+ถ้าผู้ใช้เปิดลดการเคลื่อนไหว ให้เหลือเฟด 150 ms หรือเปลี่ยนทันที บน Flutter เช็กด้วย `context.reduceMotion` (ใน `nightout_core`)
 
 เส้นโค้ง easeOut ใน Flutter:
 
@@ -137,8 +137,8 @@ const nightOutEaseOut = Cubic(0.22, 1, 0.36, 1);
 - ปุ่มข้อความ: ตัวอักษร `link`
 - ชิปปกติ: ขอบ `border`
 - ชิปที่เลือก: พื้น `purple` ตัวอักษรขาว
-- เมนูที่เลือก: ตัวอักษรทอง มีขีดล่างทอง เมนูปกติใช้ `muted`
-- ไอคอนปกติ: น้ำหนัก regular สี `muted` ไอคอนที่เลือก: น้ำหนัก fill สี `goldText`
+- เมนูที่เลือก: พื้นแคปซูลทอง `gold` ตัวอักษรและไอคอน `onGold` ไอคอนน้ำหนัก fill · เมนูปกติ: ตัวอักษรและไอคอน `muted` ไอคอนน้ำหนัก regular (ตามแถบเมนูล่าง `BottomIsland` และเมนูบนของเว็บ ใน `apps/frontend/src/ui/components/navbar.tsx` · เว็บไม่มีขีดล่างทอง) · `NavigationBar` ของ Flutter วางชื่อเมนูไว้นอกแคปซูล ชื่อเมนูที่เลือกจึงใช้ `goldText`
+- ไอคอนปกติ: น้ำหนัก regular สี `muted` ไอคอนที่เลือก: น้ำหนัก fill สี `goldText` (ถ้าอยู่บนแคปซูลทอง ใช้ `onGold`)
 - ดาวที่เติม: สี `goldText` ดาวที่ว่าง: สี `border`
 - สถานะคนในร้านต้องมีทั้งจุดสีและคำว่า ว่าง / ใกล้เต็ม / เต็ม
 
@@ -160,11 +160,23 @@ const nightOutEaseOut = Cubic(0.22, 1, 0.36, 1);
 ```dart
 import 'package:nightout_core/nightout_core.dart';
 
+// main.dart: อ่านธีมที่เก็บไว้ก่อน runApp จะได้ไม่กะพริบเป็นธีมมืดตอนเปิดแอป
+final mode = await loadNightOutThemeMode();
+runApp(ProviderScope(
+  overrides: [nightOutInitialThemeModeProvider.overrideWithValue(mode)],
+  child: const App(),
+));
+
+// app.dart
 MaterialApp(
   theme: nightOutTheme(Brightness.light),
   darkTheme: nightOutTheme(Brightness.dark),
-  themeMode: ThemeMode.dark,
+  themeMode: ref.watch(nightOutThemeModeProvider).material,
+  themeAnimationDuration: context.themeFadeDuration, // 300 ms · 0 ถ้าลดการเคลื่อนไหว
+  themeAnimationCurve: NightOutMotion.easeOut,
 )
+
+const NightOutThemeModeMenu(); // ปุ่มเลือก มืด / สว่าง / ตามเครื่อง ใส่ใน actions ของแถบบน
 
 final colors = context.colors; // NightOutColors ของธีมที่ใช้อยู่
 NightOutText.display(context.textTheme.headlineMedium, colors); // Playfair Display

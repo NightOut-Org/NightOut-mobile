@@ -17,8 +17,9 @@ that first uses it, put it in `nightout_core` if both apps can use it, and tick 
 | [ ] Crowd status | dot **and** word: ว่าง / ใกล้เต็ม / เต็ม | `crowdAvailable`, `crowdAlmostFull`, `crowdFull` | client bar card / bar page |
 | [ ] Star rating | filled `goldText`, empty `border`, 1–5 | `goldText`, `border` | client bar card |
 | [ ] Icon weight on select | normal = Phosphor regular + `muted`; selected = fill + `goldText` | `muted`, `goldText` | bottom navigation |
+| [ ] Bottom island nav | floating pill bar like web `BottomIsland` (`apps/frontend/src/ui/components/navbar.tsx`): selected item on a solid `gold` pill, `onGold` text + fill icon; others `muted` + regular; 11 px labels; spring 420/34 (instant under reduced motion) | `navigationBarTheme` colours, `context.reduceMotion` | first screen with tabs (client) |
 | [ ] Card press / glow | press scale 0.98; dark glow = gold 1px ring + purple shadow | `NightOutMotion.pressedScale`, `glow` | first tappable card |
 | [ ] Sheet motion | spring stiffness 380, damping 32 | `NightOutMotion.sheetStiffness/sheetDamping` | first bottom sheet |
 | [ ] Tier badge | S/A/B/C colours (Backoffice charts only) | `NightOutTier` | admin `/ranking` |
 
-All motion must respect reduced motion (plan 003).
+All motion must respect reduced motion: check `context.reduceMotion` (plan 003).

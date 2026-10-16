@@ -14,7 +14,7 @@ class App extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     final locale = ref.watch(mainProvider.select((state) => state.locale));
-    final themeMode = ref.watch(mainProvider.select((state) => state.themeMode));
+    final themeMode = ref.watch(nightOutThemeModeProvider);
 
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
@@ -29,7 +29,7 @@ class App extends ConsumerWidget {
       theme: nightOutTheme(Brightness.light),
       darkTheme: nightOutTheme(Brightness.dark),
       themeMode: themeMode.material,
-      themeAnimationDuration: NightOutMotion.themeFade,
+      themeAnimationDuration: context.themeFadeDuration,
       themeAnimationCurve: NightOutMotion.easeOut,
       builder: Loading.init,
       routerConfig: router,

@@ -7,7 +7,7 @@ agent can pick one up cold, without the conversation that produced it.
 |---|---|---|---|
 | 001 | [Merge client + admin into one pub workspace](001-workspace-restructure.md) | HIGH | DONE |
 | 002 | [Choose the web branch that tokens follow](002-token-source-branch.md) | MEDIUM | BLOCKED (owner decision) |
-| 003 | [Close app-wide theme gaps vs THEME.md](003-theme-foundation-gaps.md) | HIGH | IN PROGRESS (agent: Claude Code, theme) |
+| 003 | [Close app-wide theme gaps vs THEME.md](003-theme-foundation-gaps.md) | HIGH | DONE |
 | 004 | [API client + Supabase auth in nightout_core](004-api-client-and-auth.md) | HIGH | TODO |
 | 005 | [Theme components built with their first screen](005-theme-components-backlog.md) | LOW | BACKLOG |
 | 006 | [Cleanup outside the app code](006-cleanup.md) | LOW | TODO |

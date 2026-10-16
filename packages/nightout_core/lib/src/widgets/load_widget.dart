@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../motion.dart';
 import '../theme/theme.dart';
 
 class LoadWidget extends StatefulWidget {
@@ -28,15 +29,29 @@ class _LoadWidgetState extends State<LoadWidget>
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: widget.duration,
-  )..repeat();
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncSpin();
+  }
 
   @override
   void didUpdateWidget(covariant LoadWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.duration != oldWidget.duration) {
-      _controller
-        ..duration = widget.duration
-        ..repeat();
+      _controller.duration = widget.duration;
+      _syncSpin(restart: true);
+    }
+  }
+
+  /// Reduced motion shows a still ring.
+  void _syncSpin({bool restart = false}) {
+    if (context.reduceMotion) {
+      _controller.stop();
+    } else if (restart || !_controller.isAnimating) {
+      _controller.repeat();
     }
   }
 
@@ -48,19 +63,17 @@ class _LoadWidgetState extends State<LoadWidget>
 
   @override
   Widget build(BuildContext context) {
+    final ring = CustomPaint(
+      painter: _RingPainter(
+        colors: widget.colors.isEmpty ? [context.colors.gold] : widget.colors,
+        strokeWidth: widget.strokeWidth,
+      ),
+    );
     return SizedBox.square(
       dimension: widget.size,
-      child: RotationTransition(
-        turns: _controller,
-        child: CustomPaint(
-          painter: _RingPainter(
-            colors: widget.colors.isEmpty
-                ? [context.colors.gold]
-                : widget.colors,
-            strokeWidth: widget.strokeWidth,
-          ),
-        ),
-      ),
+      child: context.reduceMotion
+          ? ring
+          : RotationTransition(turns: _controller, child: ring),
     );
   }
 }

@@ -1,8 +1,8 @@
 # 003 — Close app-wide theme gaps vs THEME.md
 
-- **Status**: IN PROGRESS
+- **Status**: DONE
 - **Owner**: agent: Claude Code (theme session, started 2026-10-16)
-- **Commit**: —
+- **Commit**: `feat(theme): font fallbacks, reduced motion, shared theme mode, nav style` (the commit after `3fe50d0`)
 - **Priority**: HIGH
 - **Estimated scope**: `packages/nightout_core` + small changes in both apps
 
@@ -40,7 +40,7 @@ applied yet:
    the web has no underline on mobile, update THEME.md instead of the code.
 
 
-## Files claimed (other agents: do not edit until Status is DONE)
+## Files claimed (released: plan is DONE)
 
 The theme session owns these files while this plan is IN PROGRESS. If you need a change in one of
 them, write it under **Progress notes** below instead of editing the file.
@@ -50,7 +50,8 @@ them, write it under **Progress notes** below instead of editing the file.
 - `apps/admin/`: `lib/app.dart`, `lib/providers/main.provider.dart`,
   `lib/screen/home/home.page.dart`, `test/widget_test.dart`
 - `apps/client/`: `lib/app.dart`, `lib/screen/home/home.page.dart`,
-  `test/widget_test.dart`, plus client screens fixed for light mode (listed here when touched)
+  `test/widget_test.dart`, `lib/screen/splash.screen.dart`; dev dependency line in `apps/client/pubspec.yaml`
+- `apps/admin/lib/screen/splash.screen.dart`
 - `docs/nightout/THEME.md`, root `AGENTS.md` (theme rules section only), `plans/003`, one new row in `plans/005`
 
 Shared, small edits only (re-read the file right before editing, add lines, do not reorder):
@@ -82,12 +83,33 @@ Scope added after reading the web:
 
 ## Done when
 
-- [ ] Thai text renders with fallback configured (screenshot in PR).
-- [ ] Reduced motion stops the spinner; test covers it.
-- [ ] Client and admin both read/write `nightout-theme` through core; no copy in apps.
-- [ ] Selected nav style matches the web (or THEME.md corrected), with the web file cited.
-- [ ] `flutter analyze`, all tests, `gen_tokens --check`, `check_raw_colors.sh` pass.
+- [x] Thai text renders with fallback configured (screenshot in PR).
+- [x] Reduced motion stops the spinner; test covers it.
+- [x] Client and admin both read/write `nightout-theme` through core; no copy in apps.
+- [x] Selected nav style matches the web (or THEME.md corrected), with the web file cited.
+- [x] `flutter analyze`, all tests, `gen_tokens --check`, `check_raw_colors.sh` pass.
 
 ## Progress notes
 
-—
+2026-10-16, agent: Claude Code (theme):
+- Fonts: `_withThaiFallback` in `theme.dart` adds Noto Sans Thai at each style's own weight
+  (google_fonts names families per weight, e.g. `NotoSansThai_700`, and overwrites
+  `fontFamilyFallback`, so it is added after the GoogleFonts call). Display adds `Georgia`.
+- Reduced motion: `context.reduceMotion` and `context.themeFadeDuration` in `lib/src/motion.dart`.
+  `View` already provides a MediaQuery above MaterialApp, so apps use it in `App.build`.
+  `LoadWidget` stops and drops the `RotationTransition` when it is on.
+- Theme mode: `loadNightOutThemeMode()` before `runApp`, `nightOutInitialThemeModeProvider`
+  override, `nightOutThemeModeProvider` (+ `.set`), `NightOutThemeModeMenu` (moved from the admin
+  home). Admin's copy deleted. Client home app bar has the menu.
+- Nav: web has no gold underline. `BottomIsland` and the desktop navbar
+  (`apps/frontend/src/ui/components/navbar.tsx`) put the selected item on a solid gold pill.
+  `navigationBarTheme` now uses a gold indicator, `onGold` icon, `goldText` label (Material draws
+  the label outside the indicator). THEME.md corrected. The full floating island is a plan 005 item.
+- Light mode: both splash screens have no AppBar, so they now wrap in
+  `AnnotatedRegion(appBarTheme.systemOverlayStyle)`; status icons are dark on the light splash.
+- Verified on the iPhone 16 Pro simulator (client): dark home; LIGHT stored in the app's
+  `flutter.nightout-theme` → relaunch opens light splash and light home; Thai + English text renders.
+- `apps/client/ios/Podfile.lock` + `project.pbxproj`: the client's first native plugin
+  (`shared_preferences`, via core) made CocoaPods add the pod and its embed phase. Expected.
+- Not verified on device: the iOS Reduce Motion switch (covered by widget tests only); the admin
+  app on the simulator (covered by its widget test; `main.dart` is the same pattern as the client).

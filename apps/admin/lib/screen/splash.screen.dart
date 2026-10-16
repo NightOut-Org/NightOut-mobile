@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nightout_core/nightout_core.dart';
 import 'package:nightoutadmin/extensions/context.extension.dart';
@@ -25,29 +26,33 @@ class _SplashScreenState extends State<SplashScreen> {
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ShaderMask(
-              shaderCallback: (bounds) {
-                return LinearGradient(
-                  colors: [colors.titleFrom, colors.titleTo],
-                ).createShader(bounds);
-              },
-              child: Text(
-                'NightOut',
-                style: NightOutText.display(
-                  context.textTheme.headlineMedium,
-                  colors,
-                ).copyWith(color: Colors.white),
+    // No AppBar here, so set the status bar from the theme ourselves.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: Theme.of(context).appBarTheme.systemOverlayStyle!,
+      child: Scaffold(
+        backgroundColor: colors.background,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ShaderMask(
+                shaderCallback: (bounds) {
+                  return LinearGradient(
+                    colors: [colors.titleFrom, colors.titleTo],
+                  ).createShader(bounds);
+                },
+                child: Text(
+                  'NightOut',
+                  style: NightOutText.display(
+                    context.textTheme.headlineMedium,
+                    colors,
+                  ).copyWith(color: Colors.white),
+                ),
               ),
-            ),
-            const SizedBox(height: 32),
-            const LoadWidget(),
-          ],
+              const SizedBox(height: 32),
+              const LoadWidget(),
+            ],
+          ),
         ),
       ),
     );

@@ -16,22 +16,27 @@ abstract final class NightOutText {
     double? letterSpacing,
     Color? color,
   }) {
-    return GoogleFonts.ibmPlexSansThai(
-      fontSize: fontSize,
-      fontWeight: fontWeight,
-      height: height,
-      letterSpacing: letterSpacing,
-      color: color,
+    return _withThaiFallback(
+      GoogleFonts.ibmPlexSansThai(
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        height: height,
+        letterSpacing: letterSpacing,
+        color: color,
+      ),
     );
   }
 
   /// Playfair Display, for English brand headings and bar names.
   static TextStyle display(TextStyle? base, NightOutColors colors) {
-    return GoogleFonts.playfairDisplay(
+    final style = GoogleFonts.playfairDisplay(
       textStyle: base,
       fontWeight: FontWeight.w700,
       height: 1.15,
       color: colors.text,
+    );
+    return style.copyWith(
+      fontFamilyFallback: [...?style.fontFamilyFallback, 'Georgia'],
     );
   }
 
@@ -48,13 +53,50 @@ abstract final class NightOutText {
   }
 }
 
+/// IBM Plex Sans Thai → Noto Sans Thai → system, as on the web.
+///
+/// google_fonts registers each weight as its own family (`NotoSansThai_700`)
+/// and sets `fontFamilyFallback` itself, so the fallback is added afterwards
+/// with the Noto family that matches this style's weight.
+TextStyle _withThaiFallback(TextStyle style) {
+  final weight = style.fontWeight ?? FontWeight.w400;
+  final noto = GoogleFonts.notoSansThai(fontWeight: weight);
+  return style.copyWith(
+    fontFamilyFallback: [
+      ...?style.fontFamilyFallback,
+      noto.fontFamily!,
+      ...?noto.fontFamilyFallback,
+    ],
+  );
+}
+
+TextTheme _sansTextTheme(TextTheme t) {
+  TextStyle? f(TextStyle? style) => style == null ? null : _withThaiFallback(style);
+  return TextTheme(
+    displayLarge: f(t.displayLarge),
+    displayMedium: f(t.displayMedium),
+    displaySmall: f(t.displaySmall),
+    headlineLarge: f(t.headlineLarge),
+    headlineMedium: f(t.headlineMedium),
+    headlineSmall: f(t.headlineSmall),
+    titleLarge: f(t.titleLarge),
+    titleMedium: f(t.titleMedium),
+    titleSmall: f(t.titleSmall),
+    bodyLarge: f(t.bodyLarge),
+    bodyMedium: f(t.bodyMedium),
+    bodySmall: f(t.bodySmall),
+    labelLarge: f(t.labelLarge),
+    labelMedium: f(t.labelMedium),
+    labelSmall: f(t.labelSmall),
+  );
+}
+
 ThemeData nightOutTheme(Brightness brightness) {
   final colors = NightOutColors.of(brightness);
   final isDark = brightness == Brightness.dark;
-  final sans = GoogleFonts.ibmPlexSansThaiTextTheme().apply(
-    bodyColor: colors.text,
-    displayColor: colors.text,
-  );
+  final sans = _sansTextTheme(
+    GoogleFonts.ibmPlexSansThaiTextTheme(),
+  ).apply(bodyColor: colors.text, displayColor: colors.text);
   final textTheme = sans.copyWith(
     headlineMedium: NightOutText.display(
       sans.headlineMedium,
@@ -131,20 +173,27 @@ ThemeData nightOutTheme(Brightness brightness) {
       secondaryLabelStyle: NightOutText.sans(fontSize: 13, color: Colors.white),
       shape: const StadiumBorder(),
     ),
+    // Web BottomIsland (apps/frontend/src/ui/components/navbar.tsx): the
+    // selected item sits on a solid gold pill. Material draws the label outside
+    // the indicator, so the selected label is goldText, not onGold.
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: colors.surface,
-      indicatorColor: colors.purple.withValues(alpha: 0.16),
+      indicatorColor: colors.gold,
+      indicatorShape: const StadiumBorder(),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return NightOutText.sans(
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           color: selected ? colors.goldText : colors.muted,
         );
       }),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
-        return IconThemeData(color: selected ? colors.goldText : colors.muted);
+        return IconThemeData(
+          size: 20,
+          color: selected ? colors.onGold : colors.muted,
+        );
       }),
     ),
     inputDecorationTheme: InputDecorationTheme(

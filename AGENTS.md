@@ -33,10 +33,10 @@
 ## ธีม
 - สีมาจาก `context.colors` (`NightOutColors`) หรือ `Theme.of(context).colorScheme` เท่านั้น · **ห้ามพิมพ์ `Color(0x…)` ในแอป** (`tool/check_raw_colors.sh` ตรวจให้)
 - `packages/nightout_core/lib/src/theme/tokens.g.dart` สร้างจากเว็บด้วย `node tool/gen_tokens.mjs` · ห้ามแก้มือ · เว็บเปลี่ยนสีเมื่อไหร่ให้รันใหม่
-- ธีมมืดเป็นค่าเริ่มต้น · ผู้ใช้เลือก DARK / LIGHT / SYSTEM ได้ เก็บใน key `nightout-theme` (`nightOutThemeStorageKey`)
+- ธีมมืดเป็นค่าเริ่มต้น · ผู้ใช้เลือก DARK / LIGHT / SYSTEM ได้ เก็บใน key `nightout-theme` (`nightOutThemeStorageKey`) · state อยู่ที่ `nightOutThemeModeProvider` ใน core ห้ามเก็บซ้ำในแอป
 - ฟอนต์: IBM Plex Sans Thai (`NightOutText.sans`) · Playfair Display สำหรับหัวข้อภาษาอังกฤษ (`NightOutText.display`) · ไอคอน: `phosphor_flutter` เท่านั้น
 - ทอง / ม่วงเป็นสีเน้น ห้ามทาพื้นที่ใหญ่ · โหมดสว่างตัวอักษรทองใช้ `goldText` ห้ามใช้ `gold`
-- เคารพการตั้งค่าลดการเคลื่อนไหว (`MediaQuery.disableAnimations`) · ระยะเวลา/เส้นโค้งใช้ `NightOutMotion`
+- เคารพการตั้งค่าลดการเคลื่อนไหว: animation ใหม่ทุกตัวเช็ก `context.reduceMotion` แล้วเปลี่ยนทันทีหรือเฟด `NightOutMotion.fast` · ระยะเวลา/เส้นโค้งใช้ `NightOutMotion`
 
 ## ข้อมูลและ API
 - **อ่านและเขียนข้อมูลผ่าน NestJS (`Env.apiBaseUrl`) เท่านั้น** · `supabase_flutter` ใช้ได้เฉพาะ `supabase.auth.*` ห้ามเรียก `from()` / `rpc()` / `storage` (ADR 0002 / 0003 ของเว็บ)

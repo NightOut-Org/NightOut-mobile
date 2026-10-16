@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nightout/config.dart';
+import 'package:nightout_core/nightout_core.dart';
 import 'package:nightout/router/app.router.dart';
 
 class HomePage extends ConsumerWidget {
@@ -12,6 +13,7 @@ class HomePage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(Config.appname),
+        actions: const [NightOutThemeModeMenu()],
       ),
       body: Center(
         child: FilledButton(
