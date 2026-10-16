@@ -1,0 +1,9 @@
+targets:
+  $default:
+    builders:
+      # tokens.g.dart comes from tool/gen_tokens.mjs. Without this exclude,
+      # build_runner treats it as its own stale output and deletes it.
+      source_gen:combining_builder:
+        generate_for:
+          exclude:
+            - lib/src/theme/tokens.dart
