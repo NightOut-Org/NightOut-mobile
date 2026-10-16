@@ -1,8 +1,8 @@
 # 008 — Opacity scale and auth-screen colours in nightout_core
 
-- **Status**: IN PROGRESS
+- **Status**: DONE
 - **Owner**: agent: Claude Code (theme session, started 2026-10-16)
-- **Commit**: —
+- **Commit**: 48ef5f9
 - **Priority**: MEDIUM
 - **Estimated scope**: `packages/nightout_core` theme, one line in `apps/admin`, docs
 
@@ -38,12 +38,14 @@ Apps may not write `Color(0x…)` (`tool/check_raw_colors.sh`), but screens stil
 
 ## Done when
 
-- [ ] `NightOutAlpha` and `AuthColors` exported from `nightout_core`
-- [ ] `nightOutTheme()` registers `AuthColors` for both brightnesses; test covers it
-- [ ] admin login error box uses `NightOutAlpha` instead of `0.12`
-- [ ] rule documented in `AGENTS.md` + `THEME.md`
-- [ ] all checks in root `AGENTS.md` "ก่อนบอกว่าเสร็จ" pass
+- [x] `NightOutAlpha` and `AuthColors` exported from `nightout_core`
+- [x] `nightOutTheme()` registers `AuthColors` for both brightnesses; test covers it
+- [x] admin login error box uses `NightOutAlpha` instead of `0.12`
+- [x] rule documented in `AGENTS.md` + `THEME.md`
+- [x] all checks in root `AGENTS.md` "ก่อนบอกว่าเสร็จ" pass
 
 ## Progress notes
 
-—
+- `AuthColors` is defined but no screen uses it yet. The admin login (plan 007, ported as-is) only
+  needed the error-box tint. Use it when the client login / register screens are built (plan 005).
+- The web auth modal has no light variant, so `AuthColors.light` is the same object as `dark`.
