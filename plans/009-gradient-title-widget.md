@@ -1,8 +1,8 @@
 # 009 — Shared gold gradient title widget
 
-- **Status**: IN PROGRESS
+- **Status**: DONE
 - **Owner**: agent: Claude Code (theme session, started 2026-10-16)
-- **Commit**: —
+- **Commit**: d88255e
 - **Priority**: MEDIUM
 - **Estimated scope**: one widget in `packages/nightout_core`, three call sites in the apps
 
@@ -30,10 +30,10 @@ so no white is needed. Sizes are named (`GradientTitleSize.page` = theme `headli
 
 ## Done when
 
-- [ ] `GradientTitle` exported from `nightout_core`, with a test
-- [ ] the three screens use it; `grep -rn "Colors.white" apps/*/lib` prints nothing
-- [ ] all checks in root `AGENTS.md` "ก่อนบอกว่าเสร็จ" pass
+- [x] `GradientTitle` exported from `nightout_core`, with a test
+- [x] the three screens use it; `grep -rn "Colors.white" apps/*/lib` prints nothing
+- [x] all checks in root `AGENTS.md` "ก่อนบอกว่าเสร็จ" pass
 
 ## Progress notes
 
-—
+- Checked with a throwaway pixel test: `srcIn` output matched the old `modulate` + white output exactly (0 channel difference).
