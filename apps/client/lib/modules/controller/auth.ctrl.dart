@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightout/modules/api/api.provider.dart';
 import 'package:nightout_core/nightout_core.dart';
-import 'package:nightout_core/supabase_auth.dart';
 
 sealed class CustomerAuth {
   const CustomerAuth();

@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nightoutadmin/app.dart';
 import 'package:nightout_core/nightout_core.dart';
-import 'package:nightout_core/supabase_auth.dart' show AuthState;
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

@@ -3,6 +3,7 @@
 export 'package:supabase_flutter/supabase_flutter.dart'
     show
         AuthChangeEvent,
+        AuthException,
         AuthMFAChallengeResponse,
         AuthMFAEnrollResponse,
         AuthMFAGetAuthenticatorAssuranceLevelResponse,
@@ -10,6 +11,7 @@ export 'package:supabase_flutter/supabase_flutter.dart'
         AuthMFAUnenrollResponse,
         AuthMFAVerifyResponse,
         AuthResponse,
+        AuthState,
         AuthenticatorAssuranceLevels,
         Factor,
         FactorStatus,

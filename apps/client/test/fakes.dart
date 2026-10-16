@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightout/app.dart';
 import 'package:nightout/modules/api/api.provider.dart';
 import 'package:nightout_core/nightout_core.dart';
-import 'package:nightout_core/supabase_auth.dart';
 
 Session fakeSession(String email) => Session(
   accessToken: 'test-access-token',

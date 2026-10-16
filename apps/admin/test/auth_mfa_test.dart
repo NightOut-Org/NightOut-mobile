@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightout_core/nightout_core.dart';
-import 'package:nightout_core/supabase_auth.dart' show AuthException, AuthState;
 import 'package:nightoutadmin/modules/controller/auth.ctrl.dart';
 import 'package:nightoutadmin/providers/api.provider.dart';
 import 'package:nightoutadmin/providers/dashboard.provider.dart';

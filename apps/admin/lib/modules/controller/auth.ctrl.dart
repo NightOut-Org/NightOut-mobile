@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightout_core/nightout_core.dart';
-import 'package:nightout_core/supabase_auth.dart' show AuthException;
 import 'package:nightoutadmin/providers/api.provider.dart';
 
 /// Where the Backoffice login stands (web `apps/admin/src/modules/login/page.tsx`).
