@@ -79,19 +79,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
                       children: [
-                        ShaderMask(
-                          shaderCallback: (bounds) {
-                            return LinearGradient(
-                              colors: [colors.titleFrom, colors.titleTo],
-                            ).createShader(bounds);
-                          },
-                          child: Text(
-                            'Admin Pass',
-                            style: NightOutText.display(
-                              context.textTheme.headlineMedium,
-                              colors,
-                            ).copyWith(fontSize: 36, color: Colors.white),
-                          ),
+                        const GradientTitle(
+                          'Admin Pass',
+                          size: GradientTitleSize.hero,
                         ),
                         const SizedBox(height: 6),
                         Text(

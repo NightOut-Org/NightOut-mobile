@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nightout_core/nightout_core.dart';
-import 'package:nightoutadmin/extensions/context.extension.dart';
 import 'package:nightoutadmin/app.router.dart';
 import 'package:nightoutadmin/modules/controller/auth.ctrl.dart';
 
@@ -39,20 +38,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              ShaderMask(
-                shaderCallback: (bounds) {
-                  return LinearGradient(
-                    colors: [colors.titleFrom, colors.titleTo],
-                  ).createShader(bounds);
-                },
-                child: Text(
-                  'NightOut',
-                  style: NightOutText.display(
-                    context.textTheme.headlineMedium,
-                    colors,
-                  ).copyWith(color: Colors.white),
-                ),
-              ),
+              const GradientTitle('NightOut'),
               const SizedBox(height: 32),
               const LoadWidget(),
             ],

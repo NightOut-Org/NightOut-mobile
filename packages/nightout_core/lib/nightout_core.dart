@@ -4,5 +4,6 @@ export 'src/theme/auth_colors.dart';
 export 'src/theme/theme.dart';
 export 'src/theme/theme_mode.dart';
 export 'src/theme/tokens.dart';
+export 'src/widgets/gradient_title.dart';
 export 'src/widgets/load_widget.dart';
 export 'src/widgets/theme_mode_menu.dart';
