@@ -13,6 +13,7 @@ agent can pick one up cold, without the conversation that produced it.
 | 006 | [Cleanup outside the app code](006-cleanup.md) | LOW | TODO |
 | 007 | [Port admin login + MFA + dashboard from 4c742d7](007-port-admin-login-4c742d7.md) | HIGH | DONE |
 | 008 | [Opacity scale + auth-screen colours in core](008-alpha-scale-and-auth-colors.md) | MEDIUM | DONE |
+| 009 | [Shared gold gradient title widget](009-gradient-title-widget.md) | MEDIUM | IN PROGRESS |
 
 ## Recommended order
 
