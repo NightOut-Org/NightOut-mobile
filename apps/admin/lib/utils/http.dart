@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:nightout_core/nightout_core.dart';
 
 class HttpResult {
@@ -27,6 +28,16 @@ class Http {
     return value.endsWith('/') ? value.substring(0, value.length - 1) : value;
   }
 
+  String _requestUrl(String path, Map<String, String>? query) {
+    final absolute = path.startsWith('http://') || path.startsWith('https://');
+    final base = absolute ? path : '${_dio.options.baseUrl}$path';
+    if (query == null || query.isEmpty) return base;
+    final queryText = query.entries
+        .map((entry) => '${Uri.encodeQueryComponent(entry.key)}=${Uri.encodeQueryComponent(entry.value)}')
+        .join('&');
+    return '$base?$queryText';
+  }
+
   Future<HttpResult> send({
     required String method,
     required String path,
@@ -34,6 +45,7 @@ class Http {
     Map<String, String>? headers,
     Map<String, dynamic>? body,
   }) async {
+    debugPrint('[HTTP] $method ${_requestUrl(path, query)}');
     final response = await _dio.request<String>(
       path,
       data: body,

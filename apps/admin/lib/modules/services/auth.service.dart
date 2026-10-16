@@ -47,17 +47,34 @@ class AuthService {
 
   Future<AuthUser> fetchUser(String accessToken) async {
     final json = await _send(method: 'GET', path: '/auth/v1/user', headers: _userHeaders(accessToken));
-    log('json: ${json.toString()}');
+    log('fetchUser: ${json.toString()}');
 
     return AuthUser.fromJson(json);
   }
 
-  Future<TotpEnrollment> enrollTotp(String accessToken) async {
+  Future<void> unenrollTotp({required String accessToken, required String factorId}) async {
+    await _send(
+      method: 'DELETE',
+      path: '/auth/v1/factors/${Uri.encodeComponent(factorId)}',
+      headers: _userHeaders(accessToken),
+    );
+  }
+
+  Future<TotpEnrollment> enrollTotp(
+    String accessToken, {
+    String factorType = 'totp',
+    String friendlyName = 'NightOut Admin',
+    String issuer = 'NightOut Admin',
+  }) async {
     final json = await _send(
       method: 'POST',
       path: '/auth/v1/factors',
       headers: _userHeaders(accessToken),
-      body: const {'factor_type': 'totp', 'friendly_name': 'NightOut Admin', 'issuer': 'NightOut Admin'},
+      body: {
+        'factor_type': factorType,
+        'friendly_name': friendlyName,
+        'issuer': issuer,
+      },
     );
     log('enrollTotp: ${json.toString()}');
     final enrollment = TotpEnrollment.fromJson(json);
@@ -159,13 +176,15 @@ class AuthService {
     if (errorCode is String && errorCode.isNotEmpty) {
       throw AuthException(statusCode: response.statusCode, errorCode: errorCode, message: _messageOf(json));
     }
-    final status = json['status'];
-    if (status is String && status.isNotEmpty && status != 'ok') {
-      throw AuthException(
-        statusCode: (json['status_code'] as num?)?.toInt() ?? response.statusCode,
-        errorCode: json['code']?.toString(),
-        message: _messageOf(json),
-      );
+    if (!isAuth) {
+      final status = json['status'];
+      if (status is String && status.isNotEmpty && status != 'ok') {
+        throw AuthException(
+          statusCode: (json['status_code'] as num?)?.toInt() ?? response.statusCode,
+          errorCode: json['code']?.toString(),
+          message: _messageOf(json),
+        );
+      }
     }
     return json;
   }

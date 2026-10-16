@@ -282,7 +282,11 @@ class _BottomActions extends StatelessWidget {
               const SizedBox(height: 12),
               _GoldButton(
                 key: const Key('login-submit'),
-                label: auth.busy ? 'กำลังเข้าสู่ระบบ' : 'เข้าสู่ระบบ',
+                label: auth.busy
+                    ? 'กำลังเข้าสู่ระบบ'
+                    : auth.notice != null
+                    ? 'ลองใหม่'
+                    : 'เข้าสู่ระบบ',
                 loading: auth.busy,
                 onPressed: auth.busy ? null : onPassword,
               ),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightoutadmin/config.dart';
@@ -92,6 +93,8 @@ class _BackofficeBundle {
 final authService = Provider<AuthService>((ref) => AuthService());
 
 class AuthController extends Notifier<AuthState> {
+  bool _flowStarted = false;
+
   @override
   AuthState build() => const AuthState();
 
@@ -111,7 +114,7 @@ class AuthController extends Notifier<AuthState> {
       if (!bundle.profile.canEnterBackoffice) {
         await _dropSession(prefs, session.accessToken);
         if (!ref.mounted) return false;
-        state = const AuthState(notice: 'บัญชีนี้เข้า Backoffice ไม่ได้');
+        state = AuthState(notice: _backofficeDenied(bundle.profile));
         return false;
       }
       state = AuthState(
@@ -144,54 +147,67 @@ class AuthController extends Notifier<AuthState> {
       return;
     }
 
+    if (_flowStarted) return;
+    _flowStarted = true;
     state = state.copyWith(
       busy: true,
       credentialsInvalid: false,
       clearNotice: true,
       phase: LoginPhase.credentials,
     );
-    AuthSession? granted;
     try {
-      granted = await _service.signInWithPassword(email: trimmedEmail, password: password);
-      final session = granted;
+      final session = await _service.signInWithPassword(email: trimmedEmail, password: password);
       final profile = await _service.fetchProfile(session.accessToken);
       if (!profile.canEnterBackoffice) {
         await _remoteSignOut(session.accessToken);
         if (!ref.mounted) return;
-        state = const AuthState(notice: 'บัญชีนี้เข้า Backoffice ไม่ได้');
+        state = AuthState(notice: _backofficeDenied(profile));
         return;
       }
       final user = await _service.fetchUser(session.accessToken);
       if (!ref.mounted) return;
-      final verified = user.verifiedTotp;
+      final accountEmail = user.email.isEmpty ? session.email : user.email;
+      final plan = user.mfaPlan;
+      final verified = plan.verified;
       if (verified != null) {
         state = AuthState(
           phase: LoginPhase.verify,
           pendingAccessToken: session.accessToken,
           factorId: verified.id,
-          email: user.email.isEmpty ? session.email : user.email,
+          email: accountEmail,
           profile: profile,
         );
         return;
       }
-      final enrollment = await _service.enrollTotp(session.accessToken);
+      for (final stale in plan.unverified) {
+        await _service.unenrollTotp(accessToken: session.accessToken, factorId: stale.id);
+        if (!ref.mounted) return;
+      }
+      final sample = plan.unverified.isEmpty ? null : plan.unverified.first;
+      final enrollment = await _service.enrollTotp(
+        session.accessToken,
+        factorType: _filled(sample?.factorType, 'totp'),
+        friendlyName: _filled(sample?.friendlyName, 'NightOut Admin'),
+        issuer: _filled(sample?.issuer, 'NightOut Admin'),
+      );
       if (!ref.mounted) return;
       state = AuthState(
         phase: LoginPhase.enroll,
         pendingAccessToken: session.accessToken,
         factorId: enrollment.factorId,
         enrollment: enrollment,
-        email: user.email.isEmpty ? session.email : user.email,
+        email: accountEmail,
         profile: profile,
       );
     } on AuthException catch (error) {
-      if (granted != null) await _remoteSignOut(granted.accessToken);
+      _logAuth(error);
       if (!ref.mounted) return;
       state = AuthState(
         credentialsInvalid: error.isInvalidCredentials,
         notice: error.isInvalidCredentials ? null : error.message,
       );
     } finally {
+      _flowStarted = false;
       if (ref.mounted) state = state.copyWith(busy: false);
     }
   }
@@ -200,6 +216,8 @@ class AuthController extends Notifier<AuthState> {
     final token = state.pendingAccessToken;
     final factorId = state.factorId;
     if (token == null || factorId == null || code.length != 6) return;
+    if (_flowStarted) return;
+    _flowStarted = true;
 
     state = state.copyWith(busy: true, clearNotice: true);
     try {
@@ -232,6 +250,7 @@ class AuthController extends Notifier<AuthState> {
         state = state.copyWith(notice: error.message);
       }
     } on AuthException catch (error) {
+      _logAuth(error);
       if (!ref.mounted) return;
       state = state.copyWith(
         phase: LoginPhase.verify,
@@ -239,6 +258,7 @@ class AuthController extends Notifier<AuthState> {
         notice: error.isMfaFailed ? null : error.message,
       );
     } finally {
+      _flowStarted = false;
       if (ref.mounted) state = state.copyWith(busy: false);
     }
   }
@@ -301,6 +321,24 @@ class AuthController extends Notifier<AuthState> {
   Future<void> _dropSession(SharedPreferences prefs, String? token) async {
     await prefs.remove(Config.sessionStorageKey);
     await _remoteSignOut(token);
+  }
+
+  String _backofficeDenied(AdminProfile profile) {
+    final layer = profile.roleLabel.isNotEmpty ? profile.roleLabel : profile.role;
+    if (layer.isEmpty) return 'บัญชีนี้เข้า Backoffice ไม่ได้';
+    return 'บัญชีนี้เป็นชั้น $layer เข้า Backoffice ไม่ได้';
+  }
+
+  String _filled(String? value, String fallback) {
+    final text = value?.trim() ?? '';
+    return text.isEmpty ? fallback : text;
+  }
+
+  void _logAuth(AuthException error) {
+    log(
+      'statusCode=${error.statusCode} code=${error.errorCode} message=${error.message}',
+      name: 'AuthException',
+    );
   }
 
   Future<void> _remoteSignOut(String? token) async {

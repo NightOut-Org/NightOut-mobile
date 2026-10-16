@@ -13,8 +13,7 @@ class AuthException implements Exception {
 
   bool get isInvalidCredentials => errorCode == 'invalid_credentials';
 
-  bool get isMfaFailed =>
-      errorCode == 'mfa_verification_failed' || statusCode == 400;
+  bool get isMfaFailed => errorCode == 'mfa_verification_failed' || statusCode == 400;
 
   @override
   String toString() => message;
@@ -115,21 +114,43 @@ class AuthFactor {
     required this.id,
     required this.factorType,
     required this.status,
+    this.friendlyName = '',
+    this.issuer = '',
   });
 
   final String id;
   final String factorType;
   final String status;
+  final String friendlyName;
+  final String issuer;
 
-  bool get isVerifiedTotp => factorType == 'totp' && status == 'verified';
+  bool get isTotp => factorType.toLowerCase() == 'totp';
+
+  bool get isVerifiedTotp => isTotp && status.toLowerCase() == 'verified';
+
+  bool get isUnverifiedTotp => isTotp && status.toLowerCase() == 'unverified';
 
   factory AuthFactor.fromJson(Map<String, dynamic> json) {
+    final factorType = _text(json['factor_type']);
     return AuthFactor(
-      id: json['id'] as String? ?? '',
-      factorType: (json['factor_type'] ?? json['type']) as String? ?? '',
-      status: json['status'] as String? ?? '',
+      id: _text(json['id']).isNotEmpty ? _text(json['id']) : _text(json['factor_id']),
+      factorType: factorType.isNotEmpty ? factorType : _text(json['type']),
+      status: _text(json['status']),
+      friendlyName: _text(json['friendly_name']).isNotEmpty
+          ? _text(json['friendly_name'])
+          : _text(json['friendlyName']),
+      issuer: _text(json['issuer']),
     );
   }
+}
+
+class MfaPlan {
+  const MfaPlan({this.verified, this.unverified = const []});
+
+  final AuthFactor? verified;
+  final List<AuthFactor> unverified;
+
+  bool get shouldEnroll => verified == null;
 }
 
 class AuthUser {
@@ -143,28 +164,61 @@ class AuthUser {
   final String email;
   final List<AuthFactor> factors;
 
-  AuthFactor? get verifiedTotp {
+  AuthFactor? get verifiedTotp => mfaPlan.verified;
+
+  MfaPlan get mfaPlan {
+    AuthFactor? verified;
+    final unverified = <AuthFactor>[];
     for (final factor in factors) {
-      if (factor.isVerifiedTotp && factor.id.isNotEmpty) return factor;
+      if (!factor.isTotp || factor.id.isEmpty) continue;
+      if (factor.isVerifiedTotp) {
+        verified ??= factor;
+        continue;
+      }
+      if (factor.isUnverifiedTotp) unverified.add(factor);
     }
-    return null;
+    return MfaPlan(verified: verified, unverified: List.unmodifiable(unverified));
   }
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
-    final raw = json['factors'];
-    final factors = raw is List
-        ? raw
-            .whereType<Map>()
-            .map((item) => AuthFactor.fromJson(Map<String, dynamic>.from(item)))
-            .toList()
-        : const <AuthFactor>[];
     return AuthUser(
-      id: json['id'] as String? ?? '',
-      email: json['email'] as String? ?? '',
-      factors: factors,
+      id: _text(json['id']),
+      email: _text(json['email']),
+      factors: _dedupeFactors(_parseFactors(json['factors'])),
     );
   }
 }
+
+List<AuthFactor> _parseFactors(dynamic raw) {
+  if (raw is List) {
+    return raw.whereType<Map>().map((item) => AuthFactor.fromJson(Map<String, dynamic>.from(item))).toList();
+  }
+  if (raw is Map) {
+    final map = Map<String, dynamic>.from(raw);
+    if (map.containsKey('factor_type') || map.containsKey('friendly_name') || map.containsKey('id')) {
+      final factor = AuthFactor.fromJson(map);
+      if (factor.id.isNotEmpty || factor.factorType.isNotEmpty) return [factor];
+    }
+    final nested = <AuthFactor>[];
+    for (final value in map.values) {
+      nested.addAll(_parseFactors(value));
+    }
+    return nested;
+  }
+  return const [];
+}
+
+List<AuthFactor> _dedupeFactors(List<AuthFactor> factors) {
+  final seen = <String>{};
+  final unique = <AuthFactor>[];
+  for (final factor in factors) {
+    final key = factor.id.isNotEmpty ? factor.id : '${factor.factorType}:${factor.friendlyName}:${factor.status}';
+    if (seen.add(key)) unique.add(factor);
+  }
+  return unique;
+}
+
+String _text(dynamic value) => value is String ? value.trim() : '';
 
 class TotpEnrollment {
   const TotpEnrollment({
@@ -225,15 +279,13 @@ class AdminDashboard {
     final rawItems = json['items'];
     final items = rawItems is List
         ? rawItems
-            .whereType<Map>()
-            .map((item) => DashboardItem.fromJson(Map<String, dynamic>.from(item)))
-            .where((item) => item.label.isNotEmpty)
-            .toList()
+              .whereType<Map>()
+              .map((item) => DashboardItem.fromJson(Map<String, dynamic>.from(item)))
+              .where((item) => item.label.isNotEmpty)
+              .toList()
         : const <DashboardItem>[];
     final totalValue = json['total'] ?? json['headline'];
-    final total = totalValue is num
-        ? totalValue.toInt()
-        : items.fold<int>(0, (sum, item) => sum + item.count);
+    final total = totalValue is num ? totalValue.toInt() : items.fold<int>(0, (sum, item) => sum + item.count);
     return AdminDashboard(
       total: total,
       unit: json['unit'] as String? ?? 'รายการ',
