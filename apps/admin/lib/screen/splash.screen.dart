@@ -19,9 +19,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     super.initState();
     Future<void>.delayed(const Duration(seconds: 2), () async {
       if (!mounted) return;
-      final signedIn = await ref.read(authCtrl.notifier).restore();
+      await ref.read(authCtrl.notifier).restore();
       if (!mounted) return;
-      context.go(signedIn ? AppRoutes.home : AppRoutes.login);
+      context.go(ref.read(authCtrl) is AdminSignedIn ? AppRoutes.home : AppRoutes.login);
     });
   }
 

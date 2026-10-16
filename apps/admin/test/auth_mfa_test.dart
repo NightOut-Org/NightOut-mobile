@@ -1,296 +1,450 @@
-import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nightoutadmin/models/auth/auth.models.dart';
+import 'package:nightout_core/nightout_core.dart';
+import 'package:nightout_core/supabase_auth.dart' show AuthException, AuthState;
 import 'package:nightoutadmin/modules/controller/auth.ctrl.dart';
-import 'package:nightoutadmin/modules/services/auth.service.dart';
-import 'package:nightoutadmin/utils/http.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nightoutadmin/providers/api.provider.dart';
+import 'package:nightoutadmin/providers/dashboard.provider.dart';
+
+const _email = 'admin@nightout.co';
+const _goodCode = '123456';
+const _codeMessage = 'รหัส 6 หลักไม่ถูกต้องหรือหมดเวลาแล้ว ใช้รหัสล่าสุดจากแอปแล้วลองอีกครั้ง';
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+  test('factor ที่ verified แล้วไปขั้นใส่รหัส โดยไม่ enroll ซ้ำ', () async {
+    final h = _Harness()..auth.mfa.factors = [_factor('factor-1', FactorStatus.verified)];
 
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    await h.signIn();
+
+    final state = h.state as AdminNeedsCode;
+    expect(state.factorId, 'factor-1');
+    expect(state.enrollment, isNull);
+    expect(state.email, _email);
+    expect(h.auth.calls, ['signInWithPassword $_email', 'listFactors']);
   });
 
-  test('factor ที่ verified ใน /auth/v1/user ไม่ถูก enroll ซ้ำ', () async {
-    final harness = _Harness();
-    harness.user = _user(factors: [_factor(status: 'verified')]);
+  test('factor ที่ยังไม่ verified ถูก unenroll ก่อน enroll ใหม่', () async {
+    final h = _Harness()..auth.mfa.factors = [_factor('stale-factor', FactorStatus.unverified)];
 
-    await harness.signIn();
+    await h.signIn();
 
-    expect(harness.authCalls.where((call) => call.method == 'POST' && call.path == '/auth/v1/factors'), isEmpty);
+    expect(h.auth.calls, [
+      'signInWithPassword $_email',
+      'listFactors',
+      'unenroll stale-factor',
+      'enroll totp issuer=NightOut Admin name=NightOut Admin',
+    ]);
+    final state = h.state as AdminNeedsCode;
+    expect(state.factorId, 'new-factor');
+    expect(state.enrollment?.secret, 'SECRET');
+  });
+
+  test('enroll ล้มเหลวแล้วไม่ signOut และแสดงข้อความบนขั้นรหัสผ่าน', () async {
+    const conflict = 'A factor with the friendly name "NightOut Admin" for this user already exists';
+    final h = _Harness()
+      ..auth.mfa.enrollError = const AuthException(conflict, statusCode: '422', code: 'mfa_factor_name_conflict');
+
+    await h.signIn();
+
+    expect(h.auth.calls, isNot(contains('signOut')));
+    expect(h.auth.currentSession, isNotNull);
+    expect(h.state, isA<AdminSignedOut>().having((s) => s.error, 'error', conflict));
+  });
+
+  test('รหัสผิดบนขั้นยืนยันแล้วไม่ signOut และแสดงข้อความบนขั้นรหัส', () async {
+    final h = _Harness()..auth.mfa.factors = [_factor('factor-1', FactorStatus.verified)];
+    await h.signIn();
+
+    await h.container.read(authCtrl.notifier).verify('000000');
+
+    expect(h.auth.calls, isNot(contains('signOut')));
+    expect(h.auth.calls.last, 'challengeAndVerify factor-1 000000');
+    final state = h.state as AdminNeedsCode;
+    expect(state.error, _codeMessage);
+    expect(state.enrollment, isNull);
+  });
+
+  test('รหัสผิดบนขั้นผูกแอปยังเห็นรหัสลับเดิม', () async {
+    final h = _Harness();
+    await h.signIn();
+
+    await h.container.read(authCtrl.notifier).verify('000000');
+
+    final state = h.state as AdminNeedsCode;
+    expect(state.error, _codeMessage);
+    expect(state.factorId, 'new-factor');
+    expect(state.enrollment?.secret, 'SECRET');
+  });
+
+  test('รหัสถูกแล้วเข้าแอปพร้อมโปรไฟล์', () async {
+    final h = _Harness()..auth.mfa.factors = [_factor('factor-1', FactorStatus.verified)];
+    await h.signIn();
+
+    await h.container.read(authCtrl.notifier).verify(_goodCode);
+
+    final state = h.state as AdminSignedIn;
+    expect(state.profile.displayName, 'แอดมิน');
+    expect(state.email, _email);
+  });
+
+  test('บัญชีที่เข้า Backoffice ไม่ได้ถูก signOut พร้อมข้อความชั้นแบบเว็บ', () async {
+    final h = _Harness()..api.profile = _profile(canEnter: false);
+
+    await h.signIn();
+
+    expect(h.auth.calls, ['signInWithPassword $_email', 'signOut']);
     expect(
-      harness.authCalls.map((call) => '${call.method} ${call.path}'),
-      containsAllInOrder(<String>['POST /auth/v1/token', 'GET /auth/v1/user']),
+      h.state,
+      isA<AdminSignedOut>().having((s) => s.error, 'error', 'บัญชีนี้เป็นชั้น "ลูกค้า" ซึ่งเข้า Backoffice ไม่ได้'),
     );
-    expect(harness.state.phase, LoginPhase.verify);
-    expect(harness.state.factorId, 'factor-1');
-    expect(harness.state.session, isNull);
-    expect(harness.authCalls.where((call) => call.path == '/auth/v1/logout'), isEmpty);
   });
 
-  test('factor ที่ยังไม่ verified ถูกล้างก่อน enroll ด้วยค่าจาก /auth/v1/user', () async {
-    final harness = _Harness();
-    harness.user = _user(
-      factors: [
-        _factor(
-          id: 'stale-factor',
-          status: 'unverified',
-          factorType: 'totp',
-          friendlyName: 'NightOut Admin',
-          issuer: 'NightOut Admin',
-        ),
+  test('อ่าน /me/profile ไม่ได้ถูก signOut พร้อมข้อความว่า API มีปัญหา', () async {
+    final h = _Harness()..api.profile = const ApiException(500, 'INTERNAL', 'ระบบขัดข้อง');
+
+    await h.signIn();
+
+    expect(h.auth.calls, ['signInWithPassword $_email', 'signOut']);
+    expect(
+      h.state,
+      isA<AdminSignedOut>().having(
+        (s) => s.error,
+        'error',
+        'ล็อกอินผ่านแล้ว แต่อ่านข้อมูลบัญชีจากเซิร์ฟเวอร์ไม่ได้ (500 · INTERNAL) — ไม่ใช่เรื่องสิทธิ์ ให้ตรวจ API / Supabase',
+      ),
+    );
+  });
+
+  test('รหัสผ่านผิดแสดงข้อความภาษาไทยและไม่เรียก /me/profile', () async {
+    final h = _Harness()
+      ..auth.signInError = const AuthException(
+        'Invalid login credentials',
+        statusCode: '400',
+        code: 'invalid_credentials',
+      );
+
+    await h.signIn();
+
+    expect(h.api.calls, isEmpty);
+    expect(h.state, isA<AdminSignedOut>().having((s) => s.error, 'error', 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'));
+  });
+
+  test('กดเข้าสู่ระบบซ้ำระหว่างรอ เริ่ม flow เดียว', () async {
+    final h = _Harness();
+    final notifier = h.container.read(authCtrl.notifier);
+
+    await Future.wait([notifier.signIn(_email, 'pw'), notifier.signIn(_email, 'pw')]);
+
+    expect(h.auth.calls.where((c) => c.startsWith('signInWithPassword')), hasLength(1));
+    expect(h.auth.calls.where((c) => c.startsWith('enroll')), hasLength(1));
+    expect(h.container.read(authBusy), isFalse);
+  });
+
+  test('requireMfa ตอนมี session ไปขั้นใส่รหัส', () async {
+    final h = _Harness(session: _session())..auth.mfa.factors = [_factor('factor-1', FactorStatus.verified)];
+
+    await h.container.read(authCtrl.notifier).requireMfa();
+
+    expect(h.state, isA<AdminNeedsCode>().having((s) => s.factorId, 'factorId', 'factor-1'));
+    expect(h.auth.calls, isNot(contains('signOut')));
+  });
+
+  test('requireMfa ตอนไม่มี session กลับไปขั้นรหัสผ่าน', () async {
+    final h = _Harness();
+
+    await h.container.read(authCtrl.notifier).requireMfa();
+
+    expect(h.state, isA<AdminSignedOut>().having((s) => s.error, 'error', isNull));
+    expect(h.auth.calls, isEmpty);
+  });
+
+  test('restore ด้วย session aal1 ไปขั้นใส่รหัส', () async {
+    final h = _Harness(session: _session())..auth.mfa.factors = [_factor('factor-1', FactorStatus.verified)];
+
+    await h.container.read(authCtrl.notifier).restore();
+
+    expect(h.state, isA<AdminNeedsCode>().having((s) => s.email, 'email', _email));
+    expect(h.api.calls, ['/me/profile']);
+  });
+
+  test('restore ด้วย session aal2 เข้าแอปเลย', () async {
+    final h = _Harness(session: _session())..auth.mfa.level = AuthenticatorAssuranceLevels.aal2;
+
+    await h.container.read(authCtrl.notifier).restore();
+
+    expect(h.state, isA<AdminSignedIn>().having((s) => s.email, 'email', _email));
+    expect(h.auth.calls, isEmpty);
+  });
+
+  test('restore ด้วย session ที่หมดอายุ refresh ก่อนเรียก /me/profile', () async {
+    final h = _Harness(session: _session()..expiresAt = 0)..auth.mfa.level = AuthenticatorAssuranceLevels.aal2;
+    h.api.onGet = () => h.auth.calls.add('GET /me/profile with ${h.auth.currentSession?.accessToken}');
+
+    await h.container.read(authCtrl.notifier).restore();
+
+    expect(h.auth.calls, ['refreshSession', 'GET /me/profile with refreshed-token']);
+    expect(h.state, isA<AdminSignedIn>());
+  });
+
+  test('session ถูกยกเลิกจากภายนอกแล้วกลับไปขั้นรหัสผ่าน', () async {
+    final h = _Harness(session: _session())..auth.mfa.level = AuthenticatorAssuranceLevels.aal2;
+    await h.container.read(authCtrl.notifier).restore();
+
+    h.auth.changes.add(AuthState(AuthChangeEvent.signedOut, null));
+    await _settle();
+
+    expect(h.state, isA<AdminSignedOut>());
+  });
+
+  test('แดชบอร์ดอ่านตัวเลข 7 ช่องจาก /admin/dashboard', () async {
+    final h = _Harness()
+      ..api.dashboard = {
+        'bookings_today': 1,
+        'forfeited_today': 2,
+        'bars_pending': 3,
+        'deposits_to_verify': 4,
+        'payouts_pending': 5,
+        'promo_slips_pending': 6,
+        'reviews_reported': 7,
+      };
+
+    final d = (await h.container.read(dashboardProvider.future))!;
+
+    expect(
+      [
+        d.bookingsToday,
+        d.forfeitedToday,
+        d.barsPending,
+        d.depositsToVerify,
+        d.payoutsPending,
+        d.promoSlipsPending,
+        d.reviewsReported,
       ],
-    );
-
-    await harness.signIn();
-
-    final deleteAt = harness.authCalls.indexWhere(
-      (call) => call.method == 'DELETE' && call.path == '/auth/v1/factors/stale-factor',
-    );
-    final enrollAt = harness.authCalls.indexWhere(
-      (call) => call.method == 'POST' && call.path == '/auth/v1/factors',
-    );
-    expect(deleteAt, greaterThanOrEqualTo(0));
-    expect(enrollAt, greaterThan(deleteAt));
-    expect(harness.authCalls[enrollAt].body, {
-      'factor_type': 'totp',
-      'friendly_name': 'NightOut Admin',
-      'issuer': 'NightOut Admin',
-    });
-    expect(harness.state.phase, LoginPhase.enroll);
-    expect(harness.state.enrollment?.secret, 'SECRET');
-    expect(harness.authCalls.where((call) => call.path == '/auth/v1/logout'), isEmpty);
-  });
-
-  test('enroll ได้ 422 แล้วไม่ signOut', () async {
-    final harness = _Harness();
-    harness.user = _user(factors: const []);
-    harness.enrollStatus = 422;
-
-    await harness.signIn();
-
-    expect(harness.authCalls.where((call) => call.path == '/auth/v1/logout'), isEmpty);
-    expect(harness.state.session, isNull);
-    expect(harness.state.phase, LoginPhase.credentials);
-    expect(harness.state.notice, 'A factor with the same friendly name already exists');
-  });
-
-  test('รหัสไม่ถูกต้องแล้วไม่ signOut', () async {
-    final harness = _Harness();
-    harness.user = _user(factors: [_factor(status: 'verified')]);
-    await harness.signIn();
-
-    harness.verifyStatus = 400;
-    await harness.container.read(authCtrl.notifier).submitCode('123456');
-
-    expect(harness.authCalls.where((call) => call.path == '/auth/v1/logout'), isEmpty);
-    expect(harness.state.phase, LoginPhase.verify);
-    expect(harness.state.codeInvalid, isTrue);
-    expect(
-      harness.authCalls.map((call) => call.path),
-      containsAllInOrder(<String>[
-        '/auth/v1/factors/factor-1/challenge',
-        '/auth/v1/factors/factor-1/verify',
-      ]),
+      [1, 2, 3, 4, 5, 6, 7],
     );
   });
 
-  test('บัญชีที่เข้า Backoffice ไม่ได้ถูก signOut พร้อมข้อความชั้น', () async {
-    final harness = _Harness()..canEnter = false;
+  test('แดชบอร์ดได้ MFA_REQUIRED แล้วไปขั้นใส่รหัส ไม่ signOut', () async {
+    final h = _Harness(session: _session())
+      ..auth.mfa.level = AuthenticatorAssuranceLevels.aal2
+      ..auth.mfa.factors = [_factor('factor-1', FactorStatus.verified)]
+      ..api.dashboard = const ApiException(401, mfaRequiredCode, null);
+    await h.container.read(authCtrl.notifier).restore();
+    final sub = h.container.listen(dashboardProvider, (_, _) {});
+    addTearDown(sub.close);
 
-    await harness.signIn();
+    await expectLater(h.container.read(dashboardProvider.future), throwsA(isA<ApiException>()));
+    await _settle();
 
-    expect(harness.authCalls.where((call) => call.method == 'POST' && call.path == '/auth/v1/logout'), isNotEmpty);
-    expect(harness.state.notice, 'บัญชีนี้เป็นชั้น ผู้ดูแล เข้า Backoffice ไม่ได้');
-    expect(harness.state.session, isNull);
-  });
-
-  test('อ่าน factor_type friendly_name issuer จาก factors ของ /auth/v1/user', () {
-    final user = AuthUser.fromJson(
-      jsonDecode(_user(factors: [_factor(status: 'verified')])) as Map<String, dynamic>,
-    );
-
-    final factor = user.verifiedTotp;
-    expect(factor, isNotNull);
-    expect(factor!.factorType, 'totp');
-    expect(factor.friendlyName, 'NightOut Admin');
-    expect(factor.issuer, 'NightOut Admin');
-    expect(user.mfaPlan.shouldEnroll, isFalse);
+    expect(h.state, isA<AdminNeedsCode>().having((s) => s.factorId, 'factorId', 'factor-1'));
+    expect(h.auth.calls, isNot(contains('signOut')));
   });
 }
 
-class _HttpCall {
-  const _HttpCall(this.method, this.path, this.body);
-
-  final String method;
-  final String path;
-  final Map<String, dynamic>? body;
-}
-
-class _ScriptHttp extends Http {
-  _ScriptHttp({required this.calls, required this.handle}) : super(baseUrl: 'https://example.test');
-
-  final List<_HttpCall> calls;
-  final Future<HttpResult> Function(_HttpCall call) handle;
-
-  @override
-  Future<HttpResult> send({
-    required String method,
-    required String path,
-    Map<String, String>? query,
-    Map<String, String>? headers,
-    Map<String, dynamic>? body,
-  }) {
-    final call = _HttpCall(method, path, body);
-    calls.add(call);
-    return handle(call);
-  }
-}
+Future<void> _settle() => Future<void>.delayed(Duration.zero);
 
 class _Harness {
-  _Harness() {
-    final authHttp = _ScriptHttp(calls: authCalls, handle: _onAuth);
-    final apiHttp = _ScriptHttp(calls: apiCalls, handle: _onApi);
+  _Harness({Session? session}) : auth = _FakeAuth(session) {
     container = ProviderContainer(
       overrides: [
-        authService.overrideWithValue(
-          AuthService(
-            http: apiHttp,
-            authHttp: authHttp,
-            baseUrl: 'https://api.test',
-            supabaseUrl: 'https://auth.test',
-            anonKey: 'anon',
-          ),
-        ),
+        supabaseAuthProvider.overrideWithValue(auth),
+        apiClientProvider.overrideWithValue(api),
       ],
+    );
+    addTearDown(container.dispose);
+    container.read(authCtrl);
+  }
+
+  final _FakeAuth auth;
+  final api = _FakeApi();
+  late final ProviderContainer container;
+
+  AdminAuth get state => container.read(authCtrl);
+
+  /// Waits one more turn so a late signedOut event from the fake gets a chance to overwrite the state.
+  Future<void> signIn() async {
+    await container.read(authCtrl.notifier).signIn(_email, 'pw');
+    await _settle();
+  }
+}
+
+class _FakeAuth implements GoTrueClient {
+  _FakeAuth(this._session);
+
+  final calls = <String>[];
+  final changes = StreamController<AuthState>.broadcast();
+  late final _FakeMfa _mfa = _FakeMfa(this);
+  Session? _session;
+  AuthException? signInError;
+
+  @override
+  _FakeMfa get mfa => _mfa;
+
+  @override
+  Session? get currentSession => _session;
+
+  @override
+  Stream<AuthState> get onAuthStateChange => changes.stream;
+
+  @override
+  Future<AuthResponse> signInWithPassword({
+    String? email,
+    String? phone,
+    required String password,
+    String? captchaToken,
+  }) async {
+    calls.add('signInWithPassword $email');
+    if (signInError case final error?) throw error;
+    _session = _sessionFor(email!);
+    return AuthResponse(session: _session);
+  }
+
+  @override
+  Future<Session?> getSession() async {
+    if (_session case final session? when session.isExpired) {
+      calls.add('refreshSession');
+      _session = Session(accessToken: 'refreshed-token', tokenType: 'bearer', user: session.user);
+    }
+    return _session;
+  }
+
+  @override
+  Future<void> signOut({Object? scope}) async {
+    calls.add('signOut');
+    _session = null;
+    // gotrue delivers the event asynchronously; deliver it after signOut returns, the worst case.
+    Timer.run(() => changes.add(AuthState(AuthChangeEvent.signedOut, null)));
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeMfa implements GoTrueMFAApi {
+  _FakeMfa(this._auth);
+
+  final _FakeAuth _auth;
+  List<Factor> factors = [];
+  AuthException? enrollError;
+  AuthenticatorAssuranceLevels level = AuthenticatorAssuranceLevels.aal1;
+
+  @override
+  Future<AuthMFAListFactorsResponse> listFactors() async {
+    _auth.calls.add('listFactors');
+    final verifiedTotp = factors
+        .where((f) => f.factorType == FactorType.totp && f.status == FactorStatus.verified)
+        .toList();
+    return AuthMFAListFactorsResponse(all: factors, totp: verifiedTotp, phone: const []);
+  }
+
+  @override
+  Future<AuthMFAUnenrollResponse> unenroll(String factorId) async {
+    _auth.calls.add('unenroll $factorId');
+    factors = factors.where((f) => f.id != factorId).toList();
+    return AuthMFAUnenrollResponse(id: factorId);
+  }
+
+  @override
+  Future<AuthMFAEnrollResponse> enroll({
+    FactorType factorType = FactorType.totp,
+    String? issuer,
+    String? friendlyName,
+    String? phone,
+  }) async {
+    _auth.calls.add('enroll ${factorType.name} issuer=$issuer name=$friendlyName');
+    if (enrollError case final error?) throw error;
+    return const AuthMFAEnrollResponse(
+      id: 'new-factor',
+      type: FactorType.totp,
+      totp: TOTPEnrollment(qrCode: 'qr', secret: 'SECRET', uri: 'otpauth://totp/NightOut%20Admin'),
     );
   }
 
-  final authCalls = <_HttpCall>[];
-  final apiCalls = <_HttpCall>[];
-  late final ProviderContainer container;
-  String user = _user(factors: const []);
-  bool canEnter = true;
-  int enrollStatus = 200;
-  int verifyStatus = 200;
-
-  AuthState get state => container.read(authCtrl);
-
-  Future<void> signIn() {
-    return container.read(authCtrl.notifier).submitPassword(email: 'admin@nightout.co', password: 'secret');
+  @override
+  Future<AuthMFAVerifyResponse> challengeAndVerify({required String factorId, required String code}) async {
+    _auth.calls.add('challengeAndVerify $factorId $code');
+    if (code != _goodCode) {
+      throw const AuthException('Invalid TOTP code entered', statusCode: '422', code: 'mfa_verification_failed');
+    }
+    level = AuthenticatorAssuranceLevels.aal2;
+    return AuthMFAVerifyResponse(
+      accessToken: 'aal2-token',
+      tokenType: 'bearer',
+      expiresIn: const Duration(hours: 1),
+      refreshToken: 'refresh',
+      user: _user(_email),
+    );
   }
 
-  Future<HttpResult> _onAuth(_HttpCall call) async {
-    if (call.path == '/auth/v1/token') {
-      return _json(200, {
-        'access_token': 'access-token',
-        'refresh_token': 'refresh-token',
-        'expires_in': 3600,
-        'token_type': 'bearer',
-        'user': {'id': 'user-1', 'email': 'admin@nightout.co'},
-      });
-    }
-    if (call.path == '/auth/v1/user') {
-      return HttpResult(statusCode: 200, body: user);
-    }
-    if (call.method == 'DELETE' && call.path.startsWith('/auth/v1/factors/')) {
-      return _json(200, {
-        'id': 'stale-factor',
-        'factor_type': 'totp',
-        'friendly_name': 'NightOut Admin',
-        'issuer': 'NightOut Admin',
-        'status': 'unverified',
-      });
-    }
-    if (call.method == 'POST' && call.path == '/auth/v1/factors') {
-      if (enrollStatus >= 400) {
-        return _json(enrollStatus, {
-          'error_code': 'mfa_factor_name_conflict',
-          'msg': 'A factor with the same friendly name already exists',
-        });
-      }
-      return _json(200, {
-        'id': 'new-factor',
-        'totp': {
-          'secret': 'SECRET',
-          'uri': 'otpauth://totp/NightOut%20Admin:admin@nightout.co?secret=SECRET&issuer=NightOut%20Admin',
-          'qr_code': 'data:image/svg+xml;utf-8,<svg></svg>',
-        },
-      });
-    }
-    if (call.path.endsWith('/challenge')) {
-      return _json(200, {'id': 'challenge-1'});
-    }
-    if (call.path.endsWith('/verify')) {
-      if (verifyStatus >= 400) {
-        return _json(verifyStatus, {
-          'error_code': 'mfa_verification_failed',
-          'msg': 'Invalid TOTP code entered',
-        });
-      }
-      return _json(200, {
-        'access_token': 'aal2-token',
-        'refresh_token': 'aal2-refresh',
-        'expires_in': 3600,
-        'token_type': 'bearer',
-        'user': {'id': 'user-1', 'email': 'admin@nightout.co'},
-      });
-    }
-    if (call.path == '/auth/v1/logout') {
-      return _json(204, {});
-    }
-    return _json(500, {'msg': 'unexpected ${call.method} ${call.path}'});
+  @override
+  AuthMFAGetAuthenticatorAssuranceLevelResponse getAuthenticatorAssuranceLevel() =>
+      AuthMFAGetAuthenticatorAssuranceLevelResponse(
+        currentLevel: _auth.currentSession == null ? null : level,
+        nextLevel: null,
+        currentAuthenticationMethods: const [],
+      );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeApi implements ApiClient {
+  final calls = <String>[];
+
+  /// JSON body, or an [ApiException] to throw.
+  Object? profile = _profile(canEnter: true);
+  Object? dashboard;
+  void Function()? onGet;
+
+  @override
+  Future<T> get<T>(String path, T Function(Object? data) decode, {Map<String, Object?>? query}) async {
+    calls.add(path);
+    onGet?.call();
+    final body = switch (path) {
+      '/me/profile' => profile,
+      '/admin/dashboard' => dashboard,
+      _ => throw StateError('unexpected GET $path'),
+    };
+    if (body is ApiException) throw body;
+    return decode(body);
   }
 
-  Future<HttpResult> _onApi(_HttpCall call) async {
-    if (call.path == '/me/profile') {
-      return _json(200, {
-        'data': {
-          'id': 'user-1',
-          'display_name': 'Admin',
-          'role': 'admin',
-          'role_label': 'ผู้ดูแล',
-          'can_enter_backoffice': canEnter,
-        },
-      });
-    }
-    if (call.path == '/api/admin/dashboard') {
-      return _json(200, {
-        'data': {'total': 0, 'unit': 'รายการ', 'items': []},
-      });
-    }
-    return _json(500, {'msg': 'unexpected ${call.method} ${call.path}'});
-  }
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-HttpResult _json(int status, Map<String, dynamic> body) {
-  return HttpResult(statusCode: status, body: jsonEncode(body));
-}
+Map<String, Object?> _profile({required bool canEnter}) => {
+  'id': 'user-1',
+  'display_name': canEnter ? 'แอดมิน' : 'ลูกค้า',
+  'role': canEnter ? 'ADMIN' : 'CUSTOMER',
+  'role_label': canEnter ? 'แอดมิน' : 'ลูกค้า',
+  'can_enter_backoffice': canEnter,
+  'phone_e164': null,
+  'banned_at': null,
+  'ban_reason': null,
+  'avatar_url': null,
+};
 
-String _user({required List<Map<String, dynamic>> factors}) {
-  return jsonEncode({
-    'id': 'user-1',
-    'email': 'admin@nightout.co',
-    'factors': factors,
-  });
-}
+Factor _factor(String id, FactorStatus status) => Factor(
+  id: id,
+  friendlyName: 'NightOut Admin',
+  factorType: FactorType.totp,
+  status: status,
+  createdAt: DateTime(2026, 10, 16),
+  updatedAt: DateTime(2026, 10, 16),
+);
 
-Map<String, dynamic> _factor({
-  String id = 'factor-1',
-  String status = 'verified',
-  String factorType = 'totp',
-  String friendlyName = 'NightOut Admin',
-  String issuer = 'NightOut Admin',
-}) {
-  return {
-    'id': id,
-    'status': status,
-    'factor_type': factorType,
-    'friendly_name': friendlyName,
-    'issuer': issuer,
-  };
-}
+User _user(String email) => User(
+  id: 'user-1',
+  appMetadata: const {},
+  userMetadata: const {},
+  aud: 'authenticated',
+  email: email,
+  createdAt: '2026-10-16T00:00:00Z',
+);
+
+Session _sessionFor(String email) => Session(accessToken: 'aal1-token', tokenType: 'bearer', user: _user(email));
+
+Session _session() => _sessionFor(_email);

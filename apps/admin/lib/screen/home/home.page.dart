@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightoutadmin/extensions/context.extension.dart';
-import 'package:nightoutadmin/models/auth/auth.models.dart';
+import 'package:nightoutadmin/models/admin_dashboard.dart';
 import 'package:nightoutadmin/modules/controller/auth.ctrl.dart';
+import 'package:nightoutadmin/providers/api.provider.dart';
+import 'package:nightoutadmin/providers/dashboard.provider.dart';
 import 'package:nightout_core/nightout_core.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -19,7 +21,11 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final auth = ref.watch(authCtrl);
+    // One frame of a signed-out state can render before the router redirects to login.
+    final auth = switch (ref.watch(authCtrl)) {
+      final AdminSignedIn signedIn => signedIn,
+      _ => null,
+    };
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -86,14 +92,16 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  String _title(AuthState auth) {
-    final name = auth.profile?.displayName;
+  String _title(AdminSignedIn? auth) {
+    final name = auth?.profile.displayName;
     if (name != null && name.isNotEmpty) return name;
-    if (auth.email != null && auth.email!.isNotEmpty) return auth.email!;
+    final email = auth?.email;
+    if (email != null && email.isNotEmpty) return email;
     return 'Backoffice';
   }
 
-  Widget _body(AuthState auth) {
+  Widget _body(AdminSignedIn? auth) {
+    if (auth == null) return const SizedBox.shrink();
     if (_tab == 4) return _AccountPane(auth: auth);
     if (_tab != 0) {
       return Center(
@@ -103,21 +111,35 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
       );
     }
-    return _Dashboard(auth: auth);
+    return const _Dashboard();
   }
 }
 
 class _Dashboard extends ConsumerWidget {
-  const _Dashboard({required this.auth});
+  const _Dashboard();
 
-  final AuthState auth;
+  /// Web `CARDS` in `apps/admin/src/modules/dashboard/page.tsx`, in the same order.
+  static final _cards = <(String, int Function(AdminDashboard))>[
+    ('การจองวันนี้', (d) => d.bookingsToday),
+    ('ปลดโต๊ะวันนี้ (Forfeited)', (d) => d.forfeitedToday),
+    ('ร้านรออนุมัติ', (d) => d.barsPending),
+    ('สลิปมัดจำรอตรวจ', (d) => d.depositsToVerify),
+    ('มัดจำรอโอนให้ร้าน', (d) => d.payoutsPending),
+    ('สลิปโปรโมทรอตรวจ', (d) => d.promoSlipsPending),
+    ('รีวิวถูกรายงาน', (d) => d.reviewsReported),
+  ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final dashboard = auth.dashboard;
+    final dashboard = ref.watch(dashboardProvider);
 
-    if (dashboard == null) {
+    final error = dashboard.error;
+    // MFA_REQUIRED already sent the user back to the code step; the redirect follows shortly.
+    final reverifying = error is ApiException && error.code == mfaRequiredCode;
+    if (dashboard.isLoading || reverifying) return const Center(child: LoadWidget());
+
+    if (error != null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -125,44 +147,33 @@ class _Dashboard extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                auth.notice ?? 'โหลดแดชบอร์ดไม่สำเร็จ',
+                error is ApiException ? error.message : 'โหลดแดชบอร์ดไม่สำเร็จ',
                 textAlign: TextAlign.center,
                 style: NightOutText.sans(fontSize: 15, color: colors.text),
               ),
               const SizedBox(height: 16),
-              _RetryButton(onPressed: () => ref.read(authCtrl.notifier).reloadBackoffice()),
+              _RetryButton(onPressed: () => ref.invalidate(dashboardProvider)),
             ],
           ),
         ),
       );
     }
 
+    final data = dashboard.value;
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
       children: [
-        Text(
-          '${dashboard.total}',
-          style: NightOutText.display(context.textTheme.headlineMedium, colors).copyWith(
-            fontSize: 56,
-            color: colors.text,
-          ),
-        ),
-        Text(dashboard.unit, style: NightOutText.sans(fontSize: 14, color: colors.muted)),
-        const SizedBox(height: 20),
-        if (dashboard.items.isEmpty)
-          Text('ยังไม่มีรายการ', style: NightOutText.sans(fontSize: 15, color: colors.muted))
-        else
-          for (final item in dashboard.items)
-            _DashboardRow(item: item),
+        for (final (label, count) in _cards) _DashboardRow(label: label, count: data == null ? 0 : count(data)),
       ],
     );
   }
 }
 
 class _DashboardRow extends StatelessWidget {
-  const _DashboardRow({required this.item});
+  const _DashboardRow({required this.label, required this.count});
 
-  final DashboardItem item;
+  final String label;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
@@ -175,18 +186,16 @@ class _DashboardRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(item.label, style: NightOutText.sans(fontSize: 15, color: colors.text)),
+            child: Text(label, style: NightOutText.sans(fontSize: 15, color: colors.text)),
           ),
           Text(
-            '${item.count}',
+            '$count',
             style: NightOutText.sans(
               fontSize: 15,
               fontWeight: FontWeight.w700,
               color: colors.goldText,
             ),
           ),
-          const SizedBox(width: 8),
-          PhosphorIcon(PhosphorIconsRegular.caretRight, size: 16, color: colors.muted),
         ],
       ),
     );
@@ -196,21 +205,21 @@ class _DashboardRow extends StatelessWidget {
 class _AccountPane extends ConsumerWidget {
   const _AccountPane({required this.auth});
 
-  final AuthState auth;
+  final AdminSignedIn auth;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final role = auth.profile?.roleLabel;
+    final role = auth.profile.roleLabel;
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
       children: [
         Text(_name(auth), style: NightOutText.cardTitle(colors)),
-        if (auth.email != null) ...[
+        if (auth.email.isNotEmpty) ...[
           const SizedBox(height: 6),
-          Text(auth.email!, style: NightOutText.sans(fontSize: 14, color: colors.muted)),
+          Text(auth.email, style: NightOutText.sans(fontSize: 14, color: colors.muted)),
         ],
-        if (role != null && role.isNotEmpty) ...[
+        if (role.isNotEmpty) ...[
           const SizedBox(height: 6),
           Text(role, style: NightOutText.sans(fontSize: 14, color: colors.goldText)),
         ],
@@ -226,10 +235,9 @@ class _AccountPane extends ConsumerWidget {
     );
   }
 
-  String _name(AuthState auth) {
-    final name = auth.profile?.displayName;
-    if (name != null && name.isNotEmpty) return name;
-    return 'บัญชีผู้ดูแล';
+  String _name(AdminSignedIn auth) {
+    final name = auth.profile.displayName;
+    return name.isNotEmpty ? name : 'บัญชีผู้ดูแล';
   }
 }
 

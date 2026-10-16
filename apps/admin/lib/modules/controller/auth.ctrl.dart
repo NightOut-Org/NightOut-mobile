@@ -1,354 +1,223 @@
-import 'dart:convert';
-import 'dart:developer';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightoutadmin/config.dart';
-import 'package:nightoutadmin/models/auth/auth.models.dart';
-import 'package:nightoutadmin/modules/services/auth.service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nightout_core/nightout_core.dart';
+import 'package:nightout_core/supabase_auth.dart' show AuthException;
+import 'package:nightoutadmin/providers/api.provider.dart';
 
-enum LoginPhase { credentials, enroll, verify }
-
-class AuthState {
-  const AuthState({
-    this.phase = LoginPhase.credentials,
-    this.session,
-    this.pendingAccessToken,
-    this.factorId,
-    this.enrollment,
-    this.profile,
-    this.dashboard,
-    this.email,
-    this.credentialsInvalid = false,
-    this.codeInvalid = false,
-    this.notice,
-    this.busy = false,
-  });
-
-  final LoginPhase phase;
-  final AuthSession? session;
-  final String? pendingAccessToken;
-  final String? factorId;
-  final TotpEnrollment? enrollment;
-  final AdminProfile? profile;
-  final AdminDashboard? dashboard;
-  final String? email;
-  final bool credentialsInvalid;
-  final bool codeInvalid;
-  final String? notice;
-  final bool busy;
-
-  bool get isSignedIn => session != null;
-
-  AuthState copyWith({
-    LoginPhase? phase,
-    AuthSession? session,
-    bool clearSession = false,
-    String? pendingAccessToken,
-    bool clearPending = false,
-    String? factorId,
-    bool clearFactor = false,
-    TotpEnrollment? enrollment,
-    bool clearEnrollment = false,
-    AdminProfile? profile,
-    bool clearProfile = false,
-    AdminDashboard? dashboard,
-    bool clearDashboard = false,
-    String? email,
-    bool? credentialsInvalid,
-    bool? codeInvalid,
-    String? notice,
-    bool clearNotice = false,
-    bool? busy,
-  }) {
-    return AuthState(
-      phase: phase ?? this.phase,
-      session: clearSession ? null : session ?? this.session,
-      pendingAccessToken: clearPending ? null : pendingAccessToken ?? this.pendingAccessToken,
-      factorId: clearFactor ? null : factorId ?? this.factorId,
-      enrollment: clearEnrollment ? null : enrollment ?? this.enrollment,
-      profile: clearProfile ? null : profile ?? this.profile,
-      dashboard: clearDashboard ? null : dashboard ?? this.dashboard,
-      email: email ?? this.email,
-      credentialsInvalid: credentialsInvalid ?? this.credentialsInvalid,
-      codeInvalid: codeInvalid ?? this.codeInvalid,
-      notice: clearNotice ? null : notice ?? this.notice,
-      busy: busy ?? this.busy,
-    );
-  }
+/// Where the Backoffice login stands (web `apps/admin/src/modules/login/page.tsx`).
+sealed class AdminAuth {
+  const AdminAuth();
 }
 
-class _BackofficeBundle {
-  const _BackofficeBundle({
-    required this.user,
-    required this.profile,
-    required this.dashboard,
-  });
+/// Password step.
+final class AdminSignedOut extends AdminAuth {
+  const AdminSignedOut({this.error});
 
-  final AuthUser user;
-  final AdminProfile profile;
-  final AdminDashboard dashboard;
+  final String? error;
 }
 
-final authService = Provider<AuthService>((ref) => AuthService());
+/// Code step: enroll when [enrollment] is set, verify otherwise.
+final class AdminNeedsCode extends AdminAuth {
+  const AdminNeedsCode({required this.email, required this.factorId, this.enrollment, this.error});
 
-class AuthController extends Notifier<AuthState> {
-  bool _flowStarted = false;
+  final String email;
+  final String factorId;
+  final TOTPEnrollment? enrollment;
+  final String? error;
 
+  AdminNeedsCode withError(String? error) =>
+      AdminNeedsCode(email: email, factorId: factorId, enrollment: enrollment, error: error);
+}
+
+final class AdminSignedIn extends AdminAuth {
+  const AdminSignedIn({required this.profile, required this.email});
+
+  final MyProfile profile;
+  final String email;
+}
+
+const _issuer = 'NightOut Admin';
+
+class AuthController extends Notifier<AdminAuth> {
   @override
-  AuthState build() => const AuthState();
-
-  AuthService get _service => ref.read(authService);
-
-  Future<bool> restore() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!ref.mounted) return false;
-    final session = AuthSession.tryParse(prefs.getString(Config.sessionStorageKey));
-    if (session == null) {
-      state = const AuthState();
-      return false;
-    }
-    try {
-      final bundle = await _loadBackoffice(session.accessToken);
-      if (!ref.mounted) return false;
-      if (!bundle.profile.canEnterBackoffice) {
-        await _dropSession(prefs, session.accessToken);
-        if (!ref.mounted) return false;
-        state = AuthState(notice: _backofficeDenied(bundle.profile));
-        return false;
-      }
-      state = AuthState(
-        session: session,
-        profile: bundle.profile,
-        dashboard: bundle.dashboard,
-        email: bundle.user.email.isEmpty ? session.email : bundle.user.email,
-      );
-      return true;
-    } on AuthException {
-      await _dropSession(prefs, session.accessToken);
-      if (!ref.mounted) return false;
-      state = const AuthState();
-      return false;
-    }
+  AdminAuth build() {
+    final subscription = ref.watch(supabaseAuthProvider).onAuthStateChange.listen(
+      (change) {
+        // Catches sign-outs we did not start (refresh token revoked). Ours already set AdminSignedOut,
+        // maybe with an error that this late event must not erase.
+        if (change.event == AuthChangeEvent.signedOut && state is! AdminSignedOut) {
+          state = const AdminSignedOut();
+        }
+      },
+      // Offline token refreshes arrive here; the next API call surfaces them.
+      onError: (Object _) {},
+    );
+    ref.onDispose(subscription.cancel);
+    return const AdminSignedOut();
   }
 
-  Future<void> submitPassword({
-    required String email,
-    required String password,
-  }) async {
-    final trimmedEmail = email.trim();
-    if (trimmedEmail.isEmpty || password.isEmpty) {
-      state = state.copyWith(
-        phase: LoginPhase.credentials,
-        credentialsInvalid: false,
-        notice: 'กรอกอีเมลและรหัสผ่าน',
-        clearSession: true,
+  GoTrueClient get _auth => ref.read(supabaseAuthProvider);
+
+  /// App launch: continue whatever session Supabase restored from storage.
+  Future<void> restore() => _guard(() async {
+    // Not currentSession: Supabase.initialize does not wait for session recovery, so a stored token can
+    // still be expired here; getSession refreshes it first.
+    final session = await _auth.getSession();
+    if (session == null) {
+      state = const AdminSignedOut();
+      return;
+    }
+    // Keep the session if /me/profile fails: an offline launch should not cost a full password + code login.
+    await _continue(session.user.email ?? '', signOutIfUnreadable: false);
+  });
+
+  Future<void> signIn(String email, String password) async {
+    final address = email.trim();
+    if (address.isEmpty || password.isEmpty) {
+      state = const AdminSignedOut(error: 'กรอกอีเมลและรหัสผ่าน');
+      return;
+    }
+    await _guard(() async {
+      state = const AdminSignedOut();
+      await _auth.signInWithPassword(email: address, password: password);
+      await _continue(address, signOutIfUnreadable: true);
+    });
+  }
+
+  Future<void> verify(String code) async {
+    final step = state;
+    if (step is! AdminNeedsCode || code.length != 6) return;
+    await _guard(() async {
+      state = step.withError(null);
+      await _auth.mfa.challengeAndVerify(factorId: step.factorId, code: code);
+      await _continue(step.email, signOutIfUnreadable: false);
+    });
+  }
+
+  /// An `/admin/*` call answered `MFA_REQUIRED`: ask for the code again rather than signing out.
+  Future<void> requireMfa() async {
+    final session = _auth.currentSession;
+    if (session == null) {
+      state = const AdminSignedOut();
+      return;
+    }
+    final current = state;
+    if (current is AdminNeedsCode) return;
+    final email = current is AdminSignedIn ? current.email : session.user.email ?? '';
+    await _guard(() => _startMfa(email));
+  }
+
+  /// Both "ใช้บัญชีอื่น" on the code step and "ออกจากระบบ" on the account tab.
+  Future<void> signOut() async {
+    await _signOut();
+    state = const AdminSignedOut();
+  }
+
+  void clearError() {
+    if (state case AdminSignedOut(error: _?)) state = const AdminSignedOut();
+  }
+
+  Future<void> _continue(String email, {required bool signOutIfUnreadable}) async {
+    final MyProfile profile;
+    try {
+      profile = await ref
+          .read(apiClientProvider)
+          .get('/me/profile', (data) => MyProfile.fromJson(data! as Map<String, dynamic>));
+    } on ApiException catch (e) {
+      if (signOutIfUnreadable) await _signOut();
+      state = AdminSignedOut(
+        error:
+            'ล็อกอินผ่านแล้ว แต่อ่านข้อมูลบัญชีจากเซิร์ฟเวอร์ไม่ได้ (${e.statusCode} · ${e.code}) — ไม่ใช่เรื่องสิทธิ์ ให้ตรวจ API / Supabase',
       );
       return;
     }
-
-    if (_flowStarted) return;
-    _flowStarted = true;
-    state = state.copyWith(
-      busy: true,
-      credentialsInvalid: false,
-      clearNotice: true,
-      phase: LoginPhase.credentials,
-    );
-    try {
-      final session = await _service.signInWithPassword(email: trimmedEmail, password: password);
-      final profile = await _service.fetchProfile(session.accessToken);
-      if (!profile.canEnterBackoffice) {
-        await _remoteSignOut(session.accessToken);
-        if (!ref.mounted) return;
-        state = AuthState(notice: _backofficeDenied(profile));
-        return;
-      }
-      final user = await _service.fetchUser(session.accessToken);
-      if (!ref.mounted) return;
-      final accountEmail = user.email.isEmpty ? session.email : user.email;
-      final plan = user.mfaPlan;
-      final verified = plan.verified;
-      if (verified != null) {
-        state = AuthState(
-          phase: LoginPhase.verify,
-          pendingAccessToken: session.accessToken,
-          factorId: verified.id,
-          email: accountEmail,
-          profile: profile,
-        );
-        return;
-      }
-      for (final stale in plan.unverified) {
-        await _service.unenrollTotp(accessToken: session.accessToken, factorId: stale.id);
-        if (!ref.mounted) return;
-      }
-      final sample = plan.unverified.isEmpty ? null : plan.unverified.first;
-      final enrollment = await _service.enrollTotp(
-        session.accessToken,
-        factorType: _filled(sample?.factorType, 'totp'),
-        friendlyName: _filled(sample?.friendlyName, 'NightOut Admin'),
-        issuer: _filled(sample?.issuer, 'NightOut Admin'),
-      );
-      if (!ref.mounted) return;
-      state = AuthState(
-        phase: LoginPhase.enroll,
-        pendingAccessToken: session.accessToken,
-        factorId: enrollment.factorId,
-        enrollment: enrollment,
-        email: accountEmail,
-        profile: profile,
-      );
-    } on AuthException catch (error) {
-      _logAuth(error);
-      if (!ref.mounted) return;
-      state = AuthState(
-        credentialsInvalid: error.isInvalidCredentials,
-        notice: error.isInvalidCredentials ? null : error.message,
-      );
-    } finally {
-      _flowStarted = false;
-      if (ref.mounted) state = state.copyWith(busy: false);
+    if (!profile.canEnterBackoffice) {
+      await _signOut();
+      state = AdminSignedOut(error: 'บัญชีนี้เป็นชั้น "${profile.roleLabel}" ซึ่งเข้า Backoffice ไม่ได้');
+      return;
     }
-  }
-
-  Future<void> submitCode(String code) async {
-    final token = state.pendingAccessToken;
-    final factorId = state.factorId;
-    if (token == null || factorId == null || code.length != 6) return;
-    if (_flowStarted) return;
-    _flowStarted = true;
-
-    state = state.copyWith(busy: true, clearNotice: true);
-    try {
-      final challengeId = await _service.challengeTotp(accessToken: token, factorId: factorId);
-      final session = await _service.verifyTotp(
-        accessToken: token,
-        factorId: factorId,
-        challengeId: challengeId,
-        code: code,
-      );
-      await _persist(session);
-      if (!ref.mounted) return;
-      state = state.copyWith(
-        session: session,
-        clearPending: true,
-        phase: LoginPhase.verify,
-        codeInvalid: false,
-        email: session.email ?? state.email,
-      );
-      try {
-        final bundle = await _loadBackoffice(session.accessToken);
-        if (!ref.mounted) return;
-        state = state.copyWith(
-          profile: bundle.profile,
-          dashboard: bundle.dashboard,
-          email: bundle.user.email.isEmpty ? state.email : bundle.user.email,
-        );
-      } on AuthException catch (error) {
-        if (!ref.mounted) return;
-        state = state.copyWith(notice: error.message);
-      }
-    } on AuthException catch (error) {
-      _logAuth(error);
-      if (!ref.mounted) return;
-      state = state.copyWith(
-        phase: LoginPhase.verify,
-        codeInvalid: error.isMfaFailed,
-        notice: error.isMfaFailed ? null : error.message,
-      );
-    } finally {
-      _flowStarted = false;
-      if (ref.mounted) state = state.copyWith(busy: false);
+    if (_auth.mfa.getAuthenticatorAssuranceLevel().currentLevel == AuthenticatorAssuranceLevels.aal2) {
+      state = AdminSignedIn(profile: profile, email: email);
+      return;
     }
+    await _startMfa(email);
   }
 
-  Future<void> reloadBackoffice() async {
-    final token = state.session?.accessToken;
-    if (token == null) return;
-    state = state.copyWith(busy: true, clearNotice: true);
-    try {
-      final bundle = await _loadBackoffice(token);
-      if (!ref.mounted) return;
-      state = state.copyWith(
-        profile: bundle.profile,
-        dashboard: bundle.dashboard,
-        email: bundle.user.email.isEmpty ? state.email : bundle.user.email,
-      );
-    } on AuthException catch (error) {
-      if (!ref.mounted) return;
-      state = state.copyWith(notice: error.message);
-    } finally {
-      if (ref.mounted) state = state.copyWith(busy: false);
+  Future<void> _startMfa(String email) async {
+    final factors = await _auth.mfa.listFactors();
+    final verified = factors.totp.firstOrNull;
+    if (verified != null) {
+      state = AdminNeedsCode(email: email, factorId: verified.id);
+      return;
     }
+    // A factor scanned but never verified makes the next enroll fail on the same friendly name.
+    final stale = factors.all.where((f) => f.factorType == FactorType.totp && f.status == FactorStatus.unverified);
+    for (final factor in stale) {
+      await _auth.mfa.unenroll(factor.id);
+    }
+    final enrolled = await _auth.mfa.enroll(factorType: FactorType.totp, issuer: _issuer, friendlyName: _issuer);
+    state = AdminNeedsCode(email: email, factorId: enrolled.id, enrollment: enrolled.totp);
   }
 
-  Future<void> skipEnroll() {
-    return signOut(notice: 'ต้องผูก Authenticator ก่อนเข้า Backoffice');
-  }
-
-  void resetCode() {
-    state = state.copyWith(codeInvalid: false, clearNotice: true);
-  }
-
-  void clearCredentialError() {
-    if (state.phase != LoginPhase.credentials) return;
-    if (!state.credentialsInvalid && state.notice == null) return;
-    state = state.copyWith(credentialsInvalid: false, clearNotice: true);
-  }
-
-  Future<void> signOut({String? notice}) async {
-    final token = state.session?.accessToken ?? state.pendingAccessToken;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(Config.sessionStorageKey);
-    await _remoteSignOut(token);
-    if (!ref.mounted) return;
-    state = AuthState(notice: notice);
-  }
-
-  Future<_BackofficeBundle> _loadBackoffice(String accessToken) async {
-    final user = await _service.fetchUser(accessToken);
-    final profile = await _service.fetchProfile(accessToken);
-    final dashboard = await _service.fetchDashboard(accessToken);
-    return _BackofficeBundle(user: user, profile: profile, dashboard: dashboard);
-  }
-
-  Future<void> _persist(AuthSession session) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(Config.sessionStorageKey, jsonEncode(session.toJson()));
-  }
-
-  Future<void> _dropSession(SharedPreferences prefs, String? token) async {
-    await prefs.remove(Config.sessionStorageKey);
-    await _remoteSignOut(token);
-  }
-
-  String _backofficeDenied(AdminProfile profile) {
-    final layer = profile.roleLabel.isNotEmpty ? profile.roleLabel : profile.role;
-    if (layer.isEmpty) return 'บัญชีนี้เข้า Backoffice ไม่ได้';
-    return 'บัญชีนี้เป็นชั้น $layer เข้า Backoffice ไม่ได้';
-  }
-
-  String _filled(String? value, String fallback) {
-    final text = value?.trim() ?? '';
-    return text.isEmpty ? fallback : text;
-  }
-
-  void _logAuth(AuthException error) {
-    log(
-      'statusCode=${error.statusCode} code=${error.errorCode} message=${error.message}',
-      name: 'AuthException',
-    );
-  }
-
-  Future<void> _remoteSignOut(String? token) async {
-    if (token == null || token.isEmpty) return;
+  Future<void> _signOut() async {
     try {
-      await _service.signOut(token);
+      await _auth.signOut();
     } on AuthException {
-      // เซสชันในเครื่องถูกล้างแล้ว แม้เซิร์ฟเวอร์จะปฏิเสธการออกจากระบบ
+      // gotrue drops the local session before calling the server; only the remote revoke failed.
+    }
+  }
+
+  /// One flow at a time (web `mfaStarted`): a double tap must not start a second sign-in or enroll.
+  /// Errors land on the step the user is on and never sign out.
+  Future<void> _guard(Future<void> Function() flow) async {
+    if (ref.read(authBusy)) return;
+    final busy = ref.read(authBusy.notifier).._set(true);
+    try {
+      await flow();
+    } on Exception catch (e) {
+      final message = switch (e) {
+        AuthException() => _authMessage(e),
+        ApiException() => e.message,
+        _ => '$e',
+      };
+      state = switch (state) {
+        final AdminNeedsCode step => step.withError(message),
+        _ => AdminSignedOut(error: message),
+      };
+    } finally {
+      busy._set(false);
     }
   }
 }
 
-final authCtrl = NotifierProvider<AuthController, AuthState>(AuthController.new);
+class AuthBusy extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void _set(bool value) => state = value;
+}
+
+final authCtrl = NotifierProvider<AuthController, AdminAuth>(AuthController.new);
+
+/// True while a login flow runs; only [AuthController] changes it.
+final authBusy = NotifierProvider<AuthBusy, bool>(AuthBusy.new);
+
+const _codeMessage = 'รหัส 6 หลักไม่ถูกต้องหรือหมดเวลาแล้ว ใช้รหัสล่าสุดจากแอปแล้วลองอีกครั้ง';
+const _rateLimitMessage = 'ลองหลายครั้งเกินไป รอสักครู่แล้วลองใหม่';
+
+String _authMessage(AuthException e) => switch (e.code) {
+  'invalid_credentials' => 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
+  'email_not_confirmed' => 'บัญชีนี้ยังไม่ได้ยืนยันอีเมล',
+  'mfa_verification_failed' || 'mfa_challenge_expired' => _codeMessage,
+  'over_request_rate_limit' || 'over_email_send_rate_limit' => _rateLimitMessage,
+  _ => _toThai(e.message),
+};
+
+/// Web `toThai`, for errors that come without a code.
+String _toThai(String message) {
+  bool has(String pattern) => RegExp(pattern, caseSensitive: false).hasMatch(message);
+  if (has('invalid login credentials')) return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+  if (has('email not confirmed')) return 'บัญชีนี้ยังไม่ได้ยืนยันอีเมล';
+  if (has('invalid totp|code|expired')) return _codeMessage;
+  if (has('rate limit|too many')) return _rateLimitMessage;
+  return message;
+}

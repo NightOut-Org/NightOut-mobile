@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightoutadmin/extensions/context.extension.dart';
 import 'package:nightoutadmin/library/loading.dart';
-import 'package:nightoutadmin/models/auth/auth.models.dart';
 import 'package:nightoutadmin/modules/controller/auth.ctrl.dart';
 import 'package:nightout_core/nightout_core.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -33,8 +32,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final auth = ref.watch(authCtrl);
-    final step = auth.phase == LoginPhase.credentials ? '1/3' : '2/3';
-    final banner = _banner(auth);
+    final busy = ref.watch(authBusy);
+    final step = auth is AdminNeedsCode ? '2/2' : '1/2';
+    final banner = switch (auth) {
+      AdminSignedOut(:final error) || AdminNeedsCode(:final error) => error,
+      AdminSignedIn() => null,
+    };
 
     return GestureDetector(
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
@@ -89,7 +92,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           style: NightOutText.sans(fontSize: 13, color: colors.muted),
                         ),
                         const SizedBox(height: 28),
-                        if (auth.phase == LoginPhase.credentials) ...[
+                        if (auth is! AdminNeedsCode) ...[
                           Text(
                             'ล็อกอินเข้าห้องทำงาน',
                             style: NightOutText.sans(
@@ -134,7 +137,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               ),
                             ),
                           ),
-                        ] else if (auth.phase == LoginPhase.enroll) ...[
+                        ] else if (auth.enrollment != null) ...[
                           Text(
                             'ผูกแอป Authenticator',
                             style: NightOutText.sans(
@@ -148,6 +151,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             'เพิ่มบัญชี NightOut Admin ในแอป แล้วกรอกรหัส 6 หลัก',
                             style: NightOutText.sans(fontSize: 13, color: colors.muted),
                           ),
+                          if (banner != null) ...[
+                            const SizedBox(height: 16),
+                            _ErrorBanner(message: banner),
+                          ],
                           const SizedBox(height: 20),
                           const _StepTitle(index: '1', title: 'ติดตั้งแอป Authenticator'),
                           const SizedBox(height: 10),
@@ -155,7 +162,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           const SizedBox(height: 20),
                           const _StepTitle(index: '2', title: 'กรอกรหัส 6 หลักจากแอป'),
                           const SizedBox(height: 12),
-                          _OtpBoxes(controller: _otp, invalid: false, onChanged: (_) {}),
+                          _OtpBoxes(controller: _otp, invalid: banner != null, onChanged: (_) {}),
                         ] else ...[
                           Text(
                             'ยืนยันตัวตนอีกครั้ง',
@@ -177,7 +184,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           const SizedBox(height: 16),
                           _OtpBoxes(
                             controller: _otp,
-                            invalid: auth.codeInvalid,
+                            invalid: banner != null,
                             onChanged: (_) {},
                           ),
                         ],
@@ -188,17 +195,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
                     child: _BottomActions(
                       auth: auth,
+                      busy: busy,
                       otp: _otp,
                       onPassword: _submitPassword,
                       onCode: () => _run(() async {
-                        await ref.read(authCtrl.notifier).submitCode(_otp.text);
+                        await ref.read(authCtrl.notifier).verify(_otp.text);
                         if (!mounted) return;
-                        if (ref.read(authCtrl).codeInvalid) _otp.clear();
+                        if (ref.read(authCtrl) case AdminNeedsCode(error: _?)) _otp.clear();
                       }),
-                      onSkip: () => _run(() => ref.read(authCtrl.notifier).skipEnroll()),
-                      onResetCode: () {
+                      onSwitchAccount: () {
                         _otp.clear();
-                        ref.read(authCtrl.notifier).resetCode();
+                        _run(() => ref.read(authCtrl.notifier).signOut());
                       },
                     ),
                   ),
@@ -211,28 +218,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     );
   }
 
-  String? _banner(AuthState auth) {
-    if (auth.phase == LoginPhase.credentials && auth.credentialsInvalid) {
-      return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
-    }
-    if (auth.phase == LoginPhase.verify && auth.codeInvalid) {
-      return 'รหัสไม่ถูกต้อง';
-    }
-    return auth.notice;
-  }
-
   void _editCredentials() {
-    ref.read(authCtrl.notifier).clearCredentialError();
+    ref.read(authCtrl.notifier).clearError();
   }
 
   void _submitPassword() {
     final email = _email.text.trim();
     final password = _password.text;
     if (email.isEmpty || password.isEmpty) {
-      ref.read(authCtrl.notifier).submitPassword(email: email, password: password);
+      ref.read(authCtrl.notifier).signIn(email, password);
       return;
     }
-    _run(() => ref.read(authCtrl.notifier).submitPassword(email: email, password: password));
+    _run(() => ref.read(authCtrl.notifier).signIn(email, password));
   }
 
   Future<void> _run(Future<void> Function() action) async {
@@ -249,19 +246,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 class _BottomActions extends StatelessWidget {
   const _BottomActions({
     required this.auth,
+    required this.busy,
     required this.otp,
     required this.onPassword,
     required this.onCode,
-    required this.onSkip,
-    required this.onResetCode,
+    required this.onSwitchAccount,
   });
 
-  final AuthState auth;
+  final AdminAuth auth;
+  final bool busy;
   final TextEditingController otp;
   final VoidCallback onPassword;
   final Future<void> Function() onCode;
-  final VoidCallback onSkip;
-  final VoidCallback onResetCode;
+  final VoidCallback onSwitchAccount;
 
   @override
   Widget build(BuildContext context) {
@@ -270,8 +267,10 @@ class _BottomActions extends StatelessWidget {
     return ListenableBuilder(
       listenable: otp,
       builder: (context, _) {
-        final ready = otp.text.length == 6 && !auth.busy;
-        if (auth.phase == LoginPhase.credentials) {
+        final ready = otp.text.length == 6 && !busy;
+        final step = auth;
+        if (step is! AdminNeedsCode) {
+          final failed = step is AdminSignedOut && step.error != null;
           return Column(
             children: [
               Text(
@@ -282,27 +281,14 @@ class _BottomActions extends StatelessWidget {
               const SizedBox(height: 12),
               _GoldButton(
                 key: const Key('login-submit'),
-                label: auth.busy
+                label: busy
                     ? 'กำลังเข้าสู่ระบบ'
-                    : auth.notice != null
+                    : failed
                     ? 'ลองใหม่'
                     : 'เข้าสู่ระบบ',
-                loading: auth.busy,
-                onPressed: auth.busy ? null : onPassword,
+                loading: busy,
+                onPressed: busy ? null : onPassword,
               ),
-            ],
-          );
-        }
-        if (auth.phase == LoginPhase.enroll) {
-          return Column(
-            children: [
-              _GoldButton(
-                key: const Key('otp-submit'),
-                label: auth.busy ? 'กำลังยืนยัน' : 'ยืนยันการผูก',
-                loading: auth.busy,
-                onPressed: ready ? () => onCode() : null,
-              ),
-              TextButton(onPressed: auth.busy ? null : onSkip, child: const Text('ไม่ผูกตอนนี้')),
             ],
           );
         }
@@ -310,13 +296,17 @@ class _BottomActions extends StatelessWidget {
           children: [
             _GoldButton(
               key: const Key('otp-submit'),
-              label: auth.busy ? 'กำลังยืนยัน' : 'ยืนยัน',
-              loading: auth.busy,
+              label: busy
+                  ? 'กำลังยืนยัน'
+                  : step.enrollment != null
+                  ? 'ยืนยันและเข้าสู่ระบบ'
+                  : 'ยืนยันรหัส',
+              loading: busy,
               onPressed: ready ? () => onCode() : null,
             ),
             TextButton(
-              onPressed: auth.busy ? null : onResetCode,
-              child: Text('ใช้รหัสอื่น', style: TextStyle(color: colors.muted)),
+              onPressed: busy ? null : onSwitchAccount,
+              child: Text('ใช้บัญชีอื่น', style: TextStyle(color: colors.muted)),
             ),
           ],
         );
@@ -407,7 +397,7 @@ class _SecretBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final grouped = groupSecret(secret);
+    final grouped = _groupSecret(secret);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.card,
@@ -582,4 +572,14 @@ class _GoldButton extends StatelessWidget {
       ),
     );
   }
+}
+
+String _groupSecret(String secret) {
+  final clean = secret.replaceAll(' ', '');
+  final buffer = StringBuffer();
+  for (var i = 0; i < clean.length; i++) {
+    if (i > 0 && i % 4 == 0) buffer.write(' ');
+    buffer.write(clean[i]);
+  }
+  return buffer.toString();
 }

@@ -25,11 +25,11 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     observers: [AppNavigator.routeObserver],
     redirect: (context, state) {
-      final auth = ref.read(authCtrl);
+      final signedIn = ref.read(authCtrl) is AdminSignedIn;
       final location = state.matchedLocation;
       if (location == AppRoutes.splash) return null;
-      if (location == AppRoutes.home && !auth.isSignedIn) return AppRoutes.login;
-      if (location == AppRoutes.login && auth.isSignedIn) return AppRoutes.home;
+      if (location == AppRoutes.home && !signedIn) return AppRoutes.login;
+      if (location == AppRoutes.login && signedIn) return AppRoutes.home;
       return null;
     },
     routes: [

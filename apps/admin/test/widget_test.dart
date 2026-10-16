@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nightoutadmin/app.dart';
 import 'package:nightout_core/nightout_core.dart';
+import 'package:nightout_core/supabase_auth.dart' show AuthState;
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -13,7 +14,12 @@ void main() {
   });
 
   testWidgets('เปิดหน้าแอดมินด้วยธีมมืด แล้วสลับเป็นสว่างได้', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: App()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [supabaseAuthProvider.overrideWithValue(_SignedOutAuth())],
+        child: const App(),
+      ),
+    );
     await tester.pump();
     expect(find.byType(LoadWidget), findsOneWidget);
     expect(find.text('NightOut'), findsOneWidget);
@@ -34,4 +40,18 @@ void main() {
     final lightScaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
     expect(lightScaffold.backgroundColor, NightOutColors.light.background);
   });
+}
+
+class _SignedOutAuth implements GoTrueClient {
+  @override
+  Session? get currentSession => null;
+
+  @override
+  Future<Session?> getSession() async => null;
+
+  @override
+  Stream<AuthState> get onAuthStateChange => const Stream.empty();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
