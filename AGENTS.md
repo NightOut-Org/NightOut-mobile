@@ -41,10 +41,12 @@
 
 ## ข้อมูลและ API
 - **อ่านและเขียนข้อมูลผ่าน NestJS (`Env.apiBaseUrl`) เท่านั้น** · `supabase_flutter` ใช้ได้เฉพาะ `supabase.auth.*` ห้ามเรียก `from()` / `rpc()` / `storage` (ADR 0002 / 0003 ของเว็บ)
-- HTTP client มีตัวเดียว (Dio) **ยังไม่ได้สร้าง** · ตัวแรกที่ทำให้สร้างใน `nightout_core` (ห้ามสร้างในแอป) ตามนี้:
-  - ใส่ `Authorization: Bearer <accessToken ของ Supabase>`
-  - แกะ `{ status, status_code, data, code, err_msg }` → สำเร็จคืน `data` · ไม่สำเร็จ throw `ApiException(code, errMsg, statusCode)`
-  - `err_msg` เป็นภาษาไทยแล้ว แสดงให้ผู้ใช้ได้เลย · ตัดสินใจในโค้ดจาก `code`
+- HTTP client มีตัวเดียว: `ApiClient` ใน `nightout_core` (ทำตาม `Rest` ของเว็บ) · ห้ามใช้ Dio ตรงๆ เรียก API · ห้าม log header / body / token
+  - แต่ละแอปสร้างใน `apiClientProvider` · token อ่านด้วย `(await ref.watch(supabaseAuthProvider).getSession())?.accessToken` (ห้ามใช้ `currentSession` เพราะ session ที่กู้ตอนเปิดแอปอาจหมดอายุ `getSession()` รีเฟรชให้)
+  - แกะ `{ status, status_code, data, code, err_msg }` → สำเร็จคืน `data` · ไม่สำเร็จ throw `ApiException(statusCode, code, errMsg)` · ติดต่อไม่ได้ `statusCode == 0`
+  - `err_msg` เป็นภาษาไทยแล้ว แสดงให้ผู้ใช้ได้เลย (`ApiException.message`) · ตัดสินใจในโค้ดจาก `code`
+  - Backoffice ส่ง `unauthorizedCode: 'MFA_REQUIRED'` → 401 แปลว่าให้กรอกรหัส 6 หลักใหม่ ไม่ใช่ออกจากระบบ
+- auth: `initNightOutSupabase()` ใน `main.dart` · ใช้ `supabaseAuthProvider` (เทสต์ override ด้วย fake `GoTrueClient`) · type ของ Supabase import จาก `nightout_core` ห้าม import `supabase_flutter` ในแอป
 - JSON เป็น snake_case → `@JsonSerializable(fieldRename: FieldRename.snake)`
 - อัปโหลดไฟล์: `POST /storage/upload-url` แล้ว PUT ไฟล์ตรงไปที่ URL ที่ได้
 - ข้อมูลที่เขียนผ่าน API คือข้อมูลจริงของโปรเจกต์ ทดสอบกับบัญชีทดสอบและร้านเดโมเท่านั้น

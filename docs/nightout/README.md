@@ -93,6 +93,7 @@ abstract final class Env {
 
 - **ข้อมูลทุกอย่างอ่านและเขียนผ่าน NestJS API** ห้ามเรียก `supabase.from()` / `.rpc()` / `.storage` จากแอปตรงๆ (ADR 0002) `supabase_flutter` ใช้แค่ `supabase.auth.*`
 - ทุก request ที่ต้องล็อกอินส่ง header `Authorization: Bearer <session.accessToken ของ Supabase>`
+- ใช้ `ApiClient` ของ `nightout_core` (ใส่ Bearer และแกะ envelope ให้) ดูกติกาใน `AGENTS.md` หัวข้อ "ข้อมูลและ API"
 - key ใน body / query / response เป็น **snake_case ทั้งหมด** → ถ้าใช้ `json_serializable` ให้ตั้ง `fieldRename: FieldRename.snake`
 
 ### Swagger / OpenAPI

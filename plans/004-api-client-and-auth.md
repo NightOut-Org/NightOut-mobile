@@ -86,3 +86,19 @@ Known issues of `plans/007`.
 and hand-written Supabase REST calls in `apps/admin/lib/modules/` + `lib/utils/http.dart`. Step 5
 now means replacing that code with core `ApiClient` + `supabase_flutter`, and fixing the known
 issues listed in `plans/007-port-admin-login-4c742d7.md`.
+
+2026-10-16, agent: Claude Code (paused mid live test, owner asked to pause):
+- Committed on main: `1346dc0` core ApiClient/ApiException/MyProfile/Supabase init, `721f2e1` client
+  email/password login, `02cf4cf` admin login + MFA + dashboard on core (fixes 007 known issues 1-5),
+  `61b818f` single core entrypoint, `fac9a4b` Env defaults from `6094016` removed (owner decision:
+  values only via `--dart-define-from-file=../../.env.dev`), guard + test restored.
+- Checks on main: analyze clean; core 34, client 14, admin 19 tests pass; gen_tokens and raw colours pass.
+- Simulator: client builds and shows the login card. Live login not yet confirmed.
+- Left to do: (1) live client login with the account in `<NightOut root>/docs/creds/app_password.txt`
+  (one account; check its role). An integration test for this lives outside the repo; re-add it under
+  `apps/client/integration_test/` with `integration_test` (sdk) in dev_dependencies, pass creds with
+  `--dart-define`, never commit it. (2) live admin login + TOTP + dashboard (needs an admin account; if
+  the creds account is not backoffice, ask the owner). (3) close 004, update plan 007 known issues,
+  plan 005 note: gold button / error banner / field exist in both apps with different looks.
+- Open with the owner: `.env.dev` is still tracked in git since `52a9ad7` (rule says never commit it).
+
