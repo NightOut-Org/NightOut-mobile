@@ -46,10 +46,13 @@ Root `pubspec.lock`. `plans/007`, one row in `plans/README.md`.
    The parser expects `{total, unit, items}`; the API returns the 7-key `admin_dashboard` row
    (web `apps/admin/src/modules/dashboard/page.tsx`) → shows 0 and no rows.
 2. `log()` in `auth.service.dart` prints access tokens and the TOTP secret to the debug console.
+   Plan 010 added more debug output: `[HTTP] METHOD url` per request (`utils/http.dart`) and
+   `_logAuth()` for auth errors (`auth.ctrl.dart`).
 3. Session is a raw access token in SharedPreferences with no refresh → relaunch after ~1 h goes
    back to login.
 4. Login differs from web `apps/admin/src/modules/login/page.tsx`: 3 steps vs 2; no unenroll of
-   unverified TOTP factors before enrolling (a second enroll may fail); no Thai error mapping;
+   ~~unverified TOTP factors before enrolling (a second enroll may fail)~~ fixed by 591bd4a
+   (plan 010); no Thai error mapping;
    "ใช้รหัสอื่น" instead of web's "ใช้บัญชีอื่น" (sign out); no `MFA_REQUIRED` handling.
 5. Root `AGENTS.md` conflicts: HTTP client and auth live in the app (rule: core, via
    `supabase_flutter`); `utils/password.rules.dart` and `utils/util.dart` duplicate the client's

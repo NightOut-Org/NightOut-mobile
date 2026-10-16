@@ -14,7 +14,7 @@ agent can pick one up cold, without the conversation that produced it.
 | 007 | [Port admin login + MFA + dashboard from 4c742d7](007-port-admin-login-4c742d7.md) | HIGH | DONE |
 | 008 | [Opacity scale + auth-screen colours in core](008-alpha-scale-and-auth-colors.md) | MEDIUM | DONE |
 | 009 | [Shared gold gradient title widget](009-gradient-title-widget.md) | MEDIUM | DONE |
-| 010 | [Port admin auth fixes from 591bd4a](010-port-admin-auth-fixes-591bd4a.md) | HIGH | IN PROGRESS (agent: Claude Code, admin port) |
+| 010 | [Port admin auth fixes from 591bd4a](010-port-admin-auth-fixes-591bd4a.md) | HIGH | DONE |
 
 ## Recommended order
 
