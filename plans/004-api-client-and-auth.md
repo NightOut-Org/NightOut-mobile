@@ -69,4 +69,7 @@ packages/nightout_core/lib/src/auth/
 
 ## Progress notes
 
-—
+2026-10-16: plan 007 copied the teammate's admin login (`4c742d7`) as-is, with its own HTTP client
+and hand-written Supabase REST calls in `apps/admin/lib/modules/` + `lib/utils/http.dart`. Step 5
+now means replacing that code with core `ApiClient` + `supabase_flutter`, and fixing the known
+issues listed in `plans/007-port-admin-login-4c742d7.md`.

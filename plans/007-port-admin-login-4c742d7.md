@@ -1,8 +1,8 @@
 # 007 — Port admin login, TOTP MFA and dashboard from NightOut-admin-mobile 4c742d7
 
-- **Status**: IN PROGRESS
+- **Status**: DONE
 - **Owner**: agent: Claude Code (admin port, started 2026-10-16)
-- **Commit**: —
+- **Commit**: 4b6c88a
 - **Priority**: HIGH
 - **Estimated scope**: `apps/admin` only
 
@@ -35,10 +35,10 @@ Root `pubspec.lock`. `plans/007`, one row in `plans/README.md`.
 
 ## Done when
 
-- [ ] All teammate features present in `apps/admin` (login, enroll/verify, restore, 5-tab home,
+- [x] All teammate features present in `apps/admin` (login, enroll/verify, restore, 5-tab home,
       dashboard, account, sign-out).
-- [ ] `flutter analyze`, all tests, `gen_tokens --check`, `check_raw_colors.sh` pass.
-- [ ] Admin runs on the simulator: splash → login, theme switch works.
+- [x] `flutter analyze`, all tests, `gen_tokens --check`, `check_raw_colors.sh` pass.
+- [x] Admin runs on the simulator: splash → login, theme switch works.
 
 ## Known issues (copied as-is, not fixed here — for plan 004)
 
@@ -61,4 +61,13 @@ Root `pubspec.lock`. `plans/007`, one row in `plans/README.md`.
 
 ## Progress notes
 
-—
+2026-10-16, agent: Claude Code (admin port):
+- Copied 10 files from `4c742d7`. 6 are byte-identical (`auth.models`, `auth.ctrl`, `app.router`,
+  `password.rules`, `secure`, `util`); the rest differ only by the renames in Target.
+- `widgets/app/theme.button.dart` not copied; login and home use core `NightOutThemeModeMenu`.
+- `pubspec.lock` unchanged: `dio` was already resolved for the client.
+- Checks: `flutter analyze` clean; core 11, client 2, admin 1 tests pass; `gen_tokens --check` and
+  `check_raw_colors.sh` pass. iPhone 16 Pro simulator: Xcode build OK with `RunnerTests.swift`
+  deleted; splash → "Admin Pass" login in dark mode.
+- Not verified: a live login, MFA and the dashboard (no test admin account given). Known issue 1
+  means the dashboard will show 0 against the deployed API.
