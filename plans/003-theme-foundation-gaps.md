@@ -46,16 +46,18 @@ The theme session owns these files while this plan is IN PROGRESS. If you need a
 them, write it under **Progress notes** below instead of editing the file.
 
 - `packages/nightout_core/`: `lib/src/theme/*`
-  (`tokens.g.dart` stays generator-owned), new `lib/src/motion.dart`, `lib/src/widgets/*`, `test/*`
-- `apps/admin/`: `lib/main.dart`, `lib/app.dart`, `lib/providers/main.provider.dart`,
+  (`tokens.g.dart` stays generator-owned), new `lib/src/motion.dart`, `lib/src/widgets/*`, `test/theme_test.dart` + new `test/theme_*_test.dart` / `test/load_widget_test.dart`
+- `apps/admin/`: `lib/app.dart`, `lib/providers/main.provider.dart`,
   `lib/screen/home/home.page.dart`, `test/widget_test.dart`
-- `apps/client/`: `lib/main.dart`, `lib/app.dart`, `lib/screen/home/home.page.dart`,
+- `apps/client/`: `lib/app.dart`, `lib/screen/home/home.page.dart`,
   `test/widget_test.dart`, plus client screens fixed for light mode (listed here when touched)
 - `docs/nightout/THEME.md`, root `AGENTS.md` (theme rules section only), `plans/003`, one new row in `plans/005`
 
 Shared, small edits only (re-read the file right before editing, add lines, do not reorder):
 `packages/nightout_core/pubspec.yaml` (this plan adds `flutter_riverpod`, `shared_preferences`),
-`packages/nightout_core/lib/nightout_core.dart` (this plan adds export lines), `plans/README.md`.
+`packages/nightout_core/lib/nightout_core.dart` (this plan adds export lines), `plans/README.md`,
+`apps/*/lib/main.dart` (this plan only adds the theme-mode load + `ProviderScope` override; plan 004
+may add Supabase init there).
 
 Free for other work: everything else, including API/auth (plan 004) in new files under
 `packages/nightout_core/lib/src/` other than `theme/`, `widgets/`, `motion.dart`, and the
