@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightoutadmin/extensions/context.extension.dart';
-import 'package:nightoutadmin/library/loading.dart';
 import 'package:nightoutadmin/modules/controller/auth.ctrl.dart';
 import 'package:nightout_core/nightout_core.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -234,12 +233,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _run(Future<void> Function() action) async {
     FocusManager.instance.primaryFocus?.unfocus();
-    Loading.show();
-    try {
-      await action();
-    } finally {
-      Loading.close();
-    }
+    await action();
   }
 }
 

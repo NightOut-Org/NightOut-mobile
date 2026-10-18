@@ -1,4 +1,6 @@
+
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import 'api_exception.dart';
 
@@ -12,10 +14,12 @@ class ApiClient {
     String? unauthorizedCode,
     required Future<String?> Function() accessToken,
     Dio? dio,
+    bool? logRequests,
   }) : _baseUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl,
        _unauthorizedCode = unauthorizedCode,
        _accessToken = accessToken,
-       _dio = dio ?? Dio() {
+       _dio = dio ?? Dio(),
+       _logRequests = logRequests ?? kDebugMode {
     _dio.options
       ..baseUrl = _baseUrl
       ..connectTimeout = _timeout
@@ -31,6 +35,10 @@ class ApiClient {
   final String? _unauthorizedCode;
   final Future<String?> Function() _accessToken;
   final Dio _dio;
+
+  /// Debug aid: prints method, path and status for every call. Never headers,
+  /// body or token (see `AGENTS.md`); off in release builds.
+  final bool _logRequests;
 
   Future<T> get<T>(
     String path,
@@ -57,6 +65,9 @@ class ApiClient {
     Object? body,
     Map<String, Object?>? query,
   }) async {
+    final target = _target(path, query);
+    final clock = Stopwatch()..start();
+    _log('→ $method $target');
     final token = _dio.options.headers.containsKey('Authorization') ? null : await _accessToken();
     final Response<Object?> response;
     try {
@@ -70,11 +81,14 @@ class ApiClient {
         ),
       );
     } on DioException catch (e) {
+      _log('✗ ${e.response?.statusCode ?? 0} $method $target · ${clock.elapsedMilliseconds}ms');
       throw _failure(e);
     }
+    _log('← ${response.statusCode} $method $target · ${clock.elapsedMilliseconds}ms');
     final envelope = _Envelope.parse(response.data);
     if (envelope == null) return decode(response.data);
     if (!envelope.ok) {
+      _log('  code=${envelope.code ?? 'HTTP ${envelope.statusCode}'}');
       throw ApiException(
         envelope.statusCode,
         envelope.code ?? 'HTTP ${envelope.statusCode}',
@@ -82,6 +96,18 @@ class ApiClient {
       );
     }
     return decode(envelope.data);
+  }
+
+  /// Path with query, e.g. `/admin/views/bars?page=1` — enough to find the call.
+  static String _target(String path, Map<String, Object?>? query) {
+    if (query == null || query.isEmpty) return path;
+    final separator = path.contains('?') ? '&' : '?';
+    return '$path$separator${Uri(queryParameters: query).query}';
+  }
+
+  void _log(String line) {
+    if (!_logRequests) return;
+    debugPrint("API: $line");
   }
 
   ApiException _failure(DioException e) {
