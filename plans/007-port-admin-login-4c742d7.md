@@ -42,6 +42,10 @@ Root `pubspec.lock`. `plans/007`, one row in `plans/README.md`.
 
 ## Known issues (copied as-is, not fixed here — for plan 004)
 
+Issues 1-5 fixed by plan 004 (`02cf4cf`): dashboard path and 7-key shape, no token/secret logging,
+supabase_flutter session with refresh, web's 2-step login with Thai errors and `MFA_REQUIRED`, and the
+hand-written HTTP/auth code plus duplicated utils deleted. Issues 6-7 stand.
+
 1. Dashboard calls `/api/admin/dashboard`; `API_BASE_URL` already ends in `/api` → `/api/api/…`.
    The parser expects `{total, unit, items}`; the API returns the 7-key `admin_dashboard` row
    (web `apps/admin/src/modules/dashboard/page.tsx`) → shows 0 and no rows.

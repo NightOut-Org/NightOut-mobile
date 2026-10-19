@@ -1,8 +1,8 @@
 # 004 — API client + Supabase auth in nightout_core
 
-- **Status**: IN PROGRESS
+- **Status**: DONE
 - **Owner**: agent: Claude Code (API + auth, started 2026-10-16)
-- **Commit**: —
+- **Commit**: 1346dc0, 721f2e1, 02cf4cf, 61b818f, fac9a4b, e611b06
 - **Priority**: HIGH
 - **Estimated scope**: new code in `packages/nightout_core`, login screens in both apps
 
@@ -74,11 +74,14 @@ Known issues of `plans/007`.
 
 ## Done when
 
-- [ ] Core `ApiClient` + `ApiException` with tests for the three envelope cases.
-- [ ] Client can log in with email/password on the simulator and call one authenticated endpoint.
-- [ ] Admin can log in with MFA on the simulator and load `GET /admin/dashboard`.
-- [ ] No `supabase.from()/rpc()/storage` anywhere (grep); no URL/key hard-coded.
-- [ ] Root `AGENTS.md` "ยังไม่ได้สร้าง" note about the HTTP client removed.
+- [x] Core `ApiClient` + `ApiException` with tests for the three envelope cases.
+- [x] Client can log in with email/password on the simulator and call one authenticated endpoint.
+- [ ] Admin can log in with MFA on the simulator and load `GET /admin/dashboard`. **Waived by owner
+      2026-10-19**: the only admin test account has no TOTP factor, and enrolling one on a shared real
+      account was declined. Covered by 18 controller tests on fakes; run it live once an admin
+      account with a known TOTP secret exists.
+- [x] No `supabase.from()/rpc()/storage` anywhere (grep); no URL/key hard-coded.
+- [x] Root `AGENTS.md` "ยังไม่ได้สร้าง" note about the HTTP client removed.
 
 ## Progress notes
 
@@ -101,4 +104,16 @@ issues listed in `plans/007-port-admin-login-4c742d7.md`.
   the creds account is not backoffice, ask the owner). (3) close 004, update plan 007 known issues,
   plan 005 note: gold button / error banner / field exist in both apps with different looks.
 - Open with the owner: `.env.dev` is still tracked in git since `52a9ad7` (rule says never commit it).
+
+2026-10-19, agent: Claude Code (closing):
+- Live client test on the iPhone 16 simulator against the deployed API with the account in
+  `docs/creds` (role ADMIN, so client login works with it too): wrong password shows
+  'อีเมลหรือรหัสผ่านไม่ถูกต้อง'; real password signs in, `GET /me/profile` 200, home shows name, role
+  label and email; a fresh `flutter run` launch restores the stored session and opens home (200 again).
+- Driven with a throwaway integration test (not committed). `flutter test` uninstalls the app after
+  the run, so a relaunch check needs `flutter drive --keep-app-running` then `flutter run`.
+- Admin live MFA test waived (see Done when). Teammate's `ad3ea59` added debug-only request logging
+  (method, path, status) to `ApiClient`; consistent with the no-headers/body/token rule.
+- Follow-ups: plan 011 (social login, deep link, password reset); plan 005 gold button row (client
+  uses the `AuthColors` gradient, admin uses flat `gold`; pick one before moving it to core).
 

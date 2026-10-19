@@ -12,7 +12,7 @@ that first uses it, put it in `nightout_core` if both apps can use it, and tick 
 
 | Item | THEME.md rule | Values already in core | First likely screen |
 |---|---|---|---|
-| [ ] Gold gradient login button | `#FFD77A` → `#E8B64C`, text `#1A1206`, radius 12, height 46, glow `(0,8) blur 22 spread -8 rgba(232,182,76,.65)` | `goldHighlight`, `gold` (gradient, text colour and glow are in `AuthColors` since plan 008: `buttonFrom`, `buttonTo`, `buttonLabel`, `buttonShadow`) | client + admin login (plan 004) |
+| [ ] Gold gradient login button | `#FFD77A` → `#E8B64C`, text `#1A1206`, radius 12, height 46, glow `(0,8) blur 22 spread -8 rgba(232,182,76,.65)` | `goldHighlight`, `gold` (gradient, text colour and glow are in `AuthColors` since plan 008: `buttonFrom`, `buttonTo`, `buttonLabel`, `buttonShadow`) | client + admin login (plan 004): both now hand-roll it and differ (client = `AuthColors` gradient, admin = flat `gold`); pick one, then move to core |
 | [x] Gold gradient heading widget (`GradientTitle`, plan 009) | `ShaderMask` `titleFrom` → `titleTo` on `NightOutText.display` | `titleFrom`, `titleTo` | already hand-rolled in both splash screens and admin home; extract on next use |
 | [ ] Crowd status | dot **and** word: ว่าง / ใกล้เต็ม / เต็ม | `crowdAvailable`, `crowdAlmostFull`, `crowdFull` | client bar card / bar page |
 | [ ] Star rating | filled `goldText`, empty `border`, 1–5 | `goldText`, `border` | client bar card |
